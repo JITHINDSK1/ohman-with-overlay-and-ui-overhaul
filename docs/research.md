@@ -1,0 +1,255 @@
+# OMEN Transcend 14 firmware interface
+
+Platform: HP OMEN Transcend 14 (14-fb0xxx, board 8C58, BIOS F.12, Core Ultra 9 185H, RTX 4070 Laptop).
+Reference software: OMEN Gaming Hub 1101.2608.3.0. Every value below was either read from OGH's own
+background log on this machine (it logs the bytes it sends), taken from OGH's decompiled code and embedded
+data, or measured directly through the interface. Inferred values are marked as such.
+
+## 1. The interface
+
+- WMI namespace `root\wmi`, class `hpqBIntM`, methods `hpqBIOSInt0/4/128/1024/4096` (the number is the
+  output buffer size). Input is an `hpqBDataIn` instance: `Sign` = ASCII `SECU`, `Command` = `0x20008`,
+  `CommandType` = the opcode, `Size`, `hpqBData` = payload. Output: `Data`, `rwReturnCode` (0 = OK),
+  `Sign` = `PASS`/`FAIL`. Instances are only visible to administrators.
+- Events: class `hpqBEvnt` with `EventID` and `EventData`.
+- Return code 5 is `HPWMI_RET_INVALID_PARAMETERS` in `hp-wmi.c`, and OmenMon reads it as an insufficient
+  buffer: it is about the request, not the SKU. Seen on `0x13`, `0x2A`, `0x35`. Return code 3 is
+  `HPWMI_RET_UNKNOWN_COMMAND`, which a zero-length input buffer can also provoke on a command the firmware
+  does support. Codes 1, 4, 6 and 46 are undocumented; 6 from the graphics write is accepted-pending-restart,
+  since OGH gets the same code on the same board and the mode changes at the next boot.
+
+## 2. Commands (CommandType under 0x20008)
+
+| Opcode | Payload | Meaning | Source |
+|---|---|---|---|
+| `0x10` | `{0,0,0,0}` → out4 `[0]` = fan count | Fan count. Also arms and refreshes the firmware's user-defined thermal/fan state (§4) | measured |
+| `0x1A` | `{FF, mode, byBios, 0}` | Set performance mode. `mode`: `0x30` Balanced/Default, `0x31` Performance, `0x50` Cool. `byBios` = "fan control by BIOS", set to 1 on battery | decompiled `PerformanceControlHelper.SetFanMode`; OGH log `255,49,0,0` / `255,48,1,0` |
+| `0x21` / `0x22` | `{cTGP, PPAB, dState, peakTemp}` | GPU power get / set. OGH sends `{0,0,1,75}` for Eco, `{0,1,1,87}` for Balanced, `{1,1,1,87}` for Performance | OGH log; read-back `00 01 01 57` |
+| `0x23` | `{1,0,0,0}` → out4 `[0]` °C | Chassis / IR sensor, reads 34–50 °C; not the CPU die | measured; OGH's IR thresholds (40/52 °C) match this range |
+| `0x26` / `0x27` | `{on}` | Max fan get / set | OGH log `SetMaxFan` → `1` / `0`; measured |
+| `0x28` | out128 | System design data. Byte 3 = thermal policy version (1), byte 4 bit 0 = software fan control supported, byte 5 = default PL4 (159 W), byte 8 = default concurrent TDP (30 W). This unit: `8C 00 35 01 01 9F 00 03 1E` | measured; OGH caches the same bytes in `HKCU\Software\HP\OMEN Ally\Settings\SystemDesignData` |
+| `0x29` | `{PL1, PL2, PL4, concurrent}`, `0xFF` = unchanged | Power limits. Only the 4th byte is used on this SKU (OGH reports PL1/2/4 unsupported). It is OGH's **Smart Performance Gain**: "increases the total power allocated between CPU and GPU, allowing extra power capacity for NVIDIA Dynamic Boost to increase GPU performance" (OGH tooltip string). Base 30, max 45 (`TppMaxValue` in OGH's platform file) | OGH log `SetConcurrentTdp value=45` → `255,255,255,45`; resource strings |
+| `0x2C` | out128 `[0]` | Fan types, one nibble each (`0x21` = fan 1 CPU, fan 2 GPU) | measured |
+| `0x2D` | out128 `[0]`, `[1]` | Fan levels, RPM ÷ 100. Max fan reads 59 / 57 | measured |
+| `0x2E` | `{fan1, fan2, …}` (128 bytes) | Set fan levels. Level 0 switches the fan off (§4) | OGH log; measured |
+| `0x2F` | out128 | Fan table: `[0]` fan count, `[1]` entry count, then `{fan1, fan2, noise dB}` triplets. The third byte is noise, not temperature (kernel `victus_s_fan_table_entry`). The first row is the firmware's own minimum, and on some boards it is `0/0` | measured; corrected against `hp-wmi.c` |
+
+## 3. Eco
+
+OGH's UI enum `PerformanceModeOnUI` has Eco, but its BIOS-level enum
+(`Hp.Bridge.Client.SDKs.PerformanceControl.Enums.PerformanceMode`, in `PerformanceControl.dll`) gives Eco the
+value 256, which cannot be a payload byte. The disassembled `SetFanMode` translation for thermal-policy v1
+is Default → `0x30`, Performance → `0x31`, Cool → `0x50`, Eco → `0x30`. Eco's savings are software: the
+Windows power-mode overlay, GPU power `{0,0,1,75}`, and OGH's own governor. `0x11` is OGH's legacy "L5"
+slider mode and is not sent on this platform.
+
+## 4. Fan control
+
+### OGH's behaviour
+
+OGH keeps the machine in user-defined fan state permanently and drives the fans itself. Its stored curve for
+this model (from the embedded `profiles.json`):
+
+| CPU °C | 50 | 55 | 60 | 65 | 70 | 75 | 80 | 85 | 90 |
+|---|---|---|---|---|---|---|---|---|---|
+| CPU fan level | 23 | 23 | 25 | 32 | 39 | 46 | 46 | 46 | 49 |
+| GPU fan level | 23 | 25 | 31 | 35 | 46 | 46 | 46 | 46 | 46 |
+
+IR (chassis) sensor: 40 °C → 0, 52 °C → 46. Bounds: lower 18 (35 at 90 °C), upper 57. Smoothing λ = 0.1.
+OGH writes a level pair every 10–20 s and sends the `0x10` query every ~15 s (its heartbeat constant is
+30 s). OGH's CPU temperature (from its own driver) reads lower than the ACPI zone `\_TZ.TZ01`: with TZ01 at
+77 °C, OGH's levels correspond to about 63 °C on its table.
+
+### Firmware semantics, measured 2026-09-08 with OGH stopped
+
+| Step | Fan levels read back (0x2D) |
+|---|---|
+| Baseline, OGH driving | 35 / 33 (3500 / 3300 rpm), chassis 45 °C |
+| Write `{0,0}` with the `0x10` query, query repeated every 20 s for 60 s | 0 / 0 for the whole period and 40 s beyond |
+| Max fan on (0x27) | 43 / 43 five seconds later, rising |
+| No further commands: max fan expires | 0 / 0 again (the stale user-defined level) at +5:40 and +5:55 after the last query |
+| Firmware curve resumes on its own | 29 / 27 at +6:05 |
+
+Consequences:
+
+- Level 0 is off, not "automatic".
+- The `0x10` query arms user-defined fan state and refreshes it; the state expires about 120 s after the
+  last query.
+- When user-defined state expires, the firmware first re-applies the last written level pair before its own
+  curve resumes. Leaving a low level behind and stopping the queries is therefore not safe either.
+- Windows logs a critical thermal event (Kernel-Power 88, hibernation) when the fans are held at 0 under load.
+
+### What Ohman does with this
+
+Every mode drives the fans explicitly: Auto steps OGH's own curve for this model every 5 s (ceiling 5700 rpm,
+and 0 allowed, since HP's own tables use it) with the `0x10` query in front of every write, Manual holds the slider levels, Max
+holds the max-fan flag. The hardware layer refuses any level below 18. A thermal guard forces max fan at
+CPU ≥ 90 °C, chassis ≥ 56 °C, or stalled fans while warm. Unknown boards are read-only, and the `0x10`
+query is never sent without a fan write behind it.
+
+## 5. The OMEN key
+
+Fn+F12 raises `hpqBEvnt` EventID 29 / EventData 8613 (sometimes twice per press; the app debounces 400 ms).
+A second key produces 29/8615. `131073/0` is a power-source notification. Modifier keys are not reported while
+Fn is held (Shift+Fn+F12 arrives as a plain event), and Windows reserves F12 for the debugger
+(`AeDebug\UserDebuggerHotKey` = 0), so `RegisterHotKey` accepts Shift+F12 but the press never arrives. OGH's key handler
+(`OmenCommandCenterBackground`) is launched at logon by HP's `OmenInstallMonitor` scheduled tasks, not by its
+own (disabled) startup task; the OGH main app also starts it. Ohman stops the process and disables those
+tasks while it owns the key, and re-enables them when told.
+
+## 6. Graphics mode (MUX / iGPU only)
+
+Legacy mailbox, not the performance one: command `1` (read BIOS config) / `2` (write), CommandType `0x52`. Read
+returns out4 `[0] & 0x7F`: 0 Hybrid, 1 Discrete, 2 Optimus, 3 iGPU only (OGH `GraphicsSwitcherMode`). Write sends
+`{mode, 0, 0, 0}`; OGH sets bit 7 ("no reboot") only on platforms from its cycle "26C1" on, everything earlier,
+including the Transcend 14, applies the change at the next restart. Which modes a model offers is system-design
+data byte 7 as a bitmask: 1 iGPU only, 2 Hybrid, 4 Discrete, 8 Advanced Optimus. This unit reports `0x03`.
+
+## 7. Keyboard lighting
+
+Same mailbox, second command id. Layout from OGH's own lighting module (`HP.Omen.Background.FourZone`,
+`HP.Omen.Core.Model.Device`), matched against OmenMon and read back on this machine.
+
+| Command / type | Payload | Meaning |
+|---|---|---|
+| `0x20008` / `0x2B` | in size 0, out4 `[0]` | Keyboard type: 0 none, 1 four zones with numpad, 2 four zones without, 3 per-key RGB, 4 one zone with numpad, 5 one zone without |
+| `0x20009` / `0x01` | out128 `[0]` bit 0 | Lighting supported (legacy models only; OGH uses it for Pirates/Marlins/Gamora/Milos/Santorini) |
+| `0x20009` / `0x02` | out128 | Colour table. Zone i = bytes `25+3i .. 27+3i` (R, G, B). Bytes 0..24 are left as read |
+| `0x20009` / `0x03` | 128 bytes in, out4 | Write the colour table (read-modify-write, as OGH does) |
+| `0x20009` / `0x04` | out128 `[0]` | Backlight byte: bit 7 = on, low bits = level. OGH writes `0xE4` (on) / `0x64` (off) and nothing else |
+| `0x20009` / `0x05` | `{byte,0,0,0}`, out4 | Set the backlight byte |
+| `0x20009` / `0x06` / `0x07` | out128 / in | LED animation table (OmenMon: writing it "takes no effect") |
+
+- `hpqBEvnt` EventID 13 is the Fn backlight key; data 0 = off. OGH mirrors it into its own state.
+- OGH factory colours: `0F84FA`, `710FFA`, `F9350F`, `FAAC0F` (zones 0..3); NvStudio SKUs white.
+- Transcend 14 (8C58): four zones. HP's `OMENLighting.sys` (a KMDF lower filter on the virtual HID framework, talking to
+  `ACPI\PNP0C14`, i.e. the same WMI mailbox) publishes the keyboard to Windows as a LampArray with four lamps
+  (VID 0x0461 PID 0 = "FourZone" in OGH's own device table) so Windows Dynamic Lighting can paint it.
+- Arbitration: Windows owns the keyboard while `HKCU\Software\Microsoft\Lighting\Devices\<VHF id>\AmbientLightingEnabled`
+  is 1 (and the global value). OGH flips that value to take or return control; Ohman does the same and only for HP's
+  virtual device, never for external LampArray peripherals.
+- Measured 2026-09-12 on this machine: keyboard type byte = 2; writing `FF0000 / 00FF00 / 0000FF / FFFFFF` through
+  `0x20009/0x03` read back byte-exact and lit the four bands left to right in that order; the backlight byte read `00`
+  while Windows was driving the keyboard and `E4` after the app wrote it, so bit 7 is not a reliable "is lit" probe
+  when Dynamic Lighting owns the device.
+- The WinRT `LampArray` path reported `IsAvailable = false` for a background desktop app even with ambient off, so
+  the app writes the firmware table directly. Brightness is applied by scaling the colours; effects are frames
+  written every 120 ms (OGH animates the same way, on the CPU, at about 15 frames per second).
+
+### 7a. Per-key keyboards (type 3): the firmware interface is inert
+
+Keyboard type `3` reports "per-key RGB" and keeps answering `0x20009/0x02..0x05`, but **nothing it is told
+reaches the hardware**. Reported independently by owners of an OMEN 17-ck, board `88FE` and a Transcend 16,
+and stated by OmenMon's maintainer: the whole four-zone colour and backlight interface is there, and it does
+not control anything. It could not work anyway — 128 bytes cannot address 176 LEDs.
+
+Ohman therefore treats type 3 as `ILighting.Inert`: the keyboard is drawn, our own modes are greyed out, and
+Windows Dynamic Lighting (which talks to the keyboard directly) is offered instead.
+
+The real interface is the keyboard's own USB HID device. Two pieces of it are known:
+
+**2025 boards (OMEN MAX class) — documented, two independent implementations that agree byte for byte.**
+Device `VID_0D62 PID_54BF`, Darfon "HP Gaming Keyboard II"; the lighting lives on interface `MI_03`, which has
+a 65-byte output report. Report byte 0 is the report id and is stripped, so the 64 wire bytes are
+`[cmd][index][bLen lo][bLen hi][60-byte payload]` (the MCU ignores `bLen`). Commands: `0x09 {01}` select the
+static map, `0x05`/`0x06`/`0x07` write the R/G/B channels as three 60-byte pages each, `0x0A {AC 53}` commits
+to flash, `0x03` installs one of twelve device-side animations, `0x83` reads the effect record back. Every
+frame is acked `EC AC` (parsed) or `EC FA` (refused) — an ack does not mean anything lit. 180 slots, 176 real
+LEDs, 176–179 padding; index order is contiguous physical raster order with the numpad interleaved per row.
+`0x0A` is a real flash write and must never run per animation frame. Sources: `theantipopau/omencore`
+(`DojoKeyboardMcu.cs`, MIT, from a decompile of OGH's `McuSDK2.dll` plus a USB capture on board `8D87`) and
+`arfelious/omen-rgb-linux` (`driver.py` + `data/keys.json`, GPL-3.0). Both were read as evidence; neither was
+copied — this file is the protocol, and the code here was written from it. They cross-confirm the numbering: one predicts LEDs 137, 138 and 146 are the `.` key and
+the last cell of right shift; the other's independently-built map says exactly that.
+
+The same device also exposes `MI_04` as a **standard HID LampArray** (usage page `0x59`): 120 lamps, each
+carrying its key's HID usage, 33 ms minimum interval, no admin rights needed. No readback, no brightness, and
+a LampArray picture does not survive the Fn overlay, but it needs no reverse engineering. Windows Dynamic
+Lighting contends for the same device, which is the arbitration problem we already solve for four zones.
+
+**Every per-key OMEN before 2025 (17-ck, 16-b, Transcend 16, OMEN 16/17 2023–24): nobody has published a
+protocol.** The likely controller is Primax `0461:4E9B` "HP OMEN 16 KBM"; no capture of OMEN Light Studio
+driving it exists publicly. That capture is the blocker, and it is what the upstream projects have asked for
+and never received.
+
+**Do not write the `0x0F / 0x42 / 0x52 / 0x50` command set with `VID 0x03F0`** that circulates in a couple of
+projects citing "OpenRGB's HPOmenKeyboard controller". That controller does not exist: OpenRGB has no per-key
+HP keyboard driver at all, only a WMI four-zone one that explicitly refuses type 3. Mainline `hp-wmi.c` has no
+lighting code of any kind.
+
+**Caution on `0x20009/0x01`.** The row above reads bit 0 of the out128 as "lighting supported". On board
+`8D87` that byte was observed as a saturating accumulator (`0x0F, 0x1F, 0x3F, 0x7F, 0xFF`), so bit 0 can read
+true on a machine with no controllable lighting. Ohman only consults it for boards whose type byte is not
+1–5, and still disables lighting if the colour table then fails to read, but it is a weak signal and not
+something to build on. `0x20009/0x04` must be called with a 128-byte output buffer; a smaller one returns
+`rwReturnCode 5`.
+
+## 8. Generic support for other boards
+
+A board without a verified profile gets one built at run time, the way the Linux driver decides: the thermal-policy
+version from system-design byte 3 selects the mode bytes (v1 `0x30/0x31/0x50`, v0 `0x00/0x01/0x02`), the Victus
+board lists from `hp-wmi.c` override them (`88F8`, `8A25`: `0x00/0x01/0x03`; the Victus S boards: `0x00/0x01`), the
+`force_v0` boards (`8607`, `8746`..`874A`) keep v0 bytes, power gain is offered only when system-design byte 8 is
+non-zero, GPU power only when `0x21` answers, and the fan ceiling is raised to the highest level in the firmware's
+own fan table when that is above 57. The fan floor, the keep-alive rule and the thermal guard are unchanged.
+
+## 9. Where the OGH internals live
+
+- Logs: `%LOCALAPPDATA%\Packages\AD2F1837.OMENCommandCenter_v10z8vjag6ke6\LocalCache\Local\HPOMEN\HPOMENBG_<date>.log`
+  record `[ExecuteBiosWmiCommandThruDriver] inputData=…` for every call, with the helper names around them.
+- The package folder under `C:\Program Files\WindowsApps\` is readable. Assemblies load with
+  `Assembly.LoadFrom` in PowerShell for reflection (enums, resource strings, embedded per-model JSON under
+  `HP.Omen.Core.Common.PowerControl.JSON.*`); method IL can be read with `GetMethodBody().GetILAsByteArray()`.
+
+## 10. Open questions
+
+- Whether the mode command `0x1A` alone (without `0x10`) keeps the firmware in user-defined state, and whether
+  performance mode reverts after 120 s without the query (`fantest` phase D).
+- Whether the firmware keeps running its own curve when only the query is sent and no levels were written
+  (`fantest` phase E).
+- The exact sensor behind `0x23` and what Windows' `\_TZ.TZ01` zone measures relative to the CPU package.
+- What launches the OGH main app on Fn+F12 when `OmenCommandCenterBackground` is not running (observed once;
+  HP's `OMENKeyboardRemapper` and the `OmenOverlay` tasks are candidates).
+
+## 11. Battery charge limit: not reachable from here
+
+Recorded so nobody spends another evening on it. `MasonDye/OmenXHub` took this apart on an OMEN 16-am0xxx
+(BIOS F.12) in August 2026 and published the negative result, which matches what the mailbox looks like from
+our side:
+
+- Scanning `hpqBIntM` across commands `0x2000C`–`0x20020`, every cmdType, returns `rc = 0x3`, invalid command.
+  That BIOS implements only `0x20008` (system and design data) and `0x20009` (keyboard and lighting) — the two
+  Ohman already drives. **There is no charge-limit command in the mailbox to find.**
+- myHP does not use the mailbox for this. It goes through WinRT, `HP.AppFramework.PowerManagerClient`, whose
+  implementation is inside `HP.HPX.dll` — 198 MB of CoreRT AOT with ~340k functions, which ILSpy cannot
+  decompile. Activating `BatteryParticulars` from outside the package fails with `E_INVALIDARG`, because the
+  class is gated on UWP package identity.
+- Writing HP's own feature flags (`HKLM\SOFTWARE\HP\HP App\SysControl\BatteryExtenderMode\Enabled`, and the
+  scheduled-charge key) and restarting `HPAppHelperCap` succeeds and changes nothing.
+
+The only path left is writing EC registers directly, which needs a kernel driver to reach port I/O. That is
+exactly the thing Ohman does not have and does not want: one executable, no driver, no service. So this is not
+a gap in our coverage, it is out of scope by construction — and if a laptop's own vendor app does not offer
+the setting, its firmware very likely does not implement it either.
+
+## Measured: what the app itself costs (2026-09-13)
+
+Two findings from profiling Ohman on the Transcend 14, both now handled in code.
+
+**Polling nvidia-smi keeps the discrete GPU awake.** Every `nvidia-smi` invocation wakes the dGPU out of its
+idle power state. Ohman used to ask every other sensor tick: every 4 s with the window open, every 10 s with it
+hidden. On a hybrid machine that is often enough that the GPU never reaches its deepest idle state, and the log
+showed it sitting at 54–55 °C with nothing running. That is several watts inside a shared thermal budget, which
+raises the chassis reading and makes the fan curve ask for more. `Sensors` now backs off to one read every two
+minutes after three consecutive idle readings (GPU utilisation ≤ 1 % and package under 12 W), and skips the read
+entirely when the graphics mode is iGPU-only. A busy GPU is still sampled at the normal rate, because the fan
+curve needs it.
+
+Ohman's own CPU cost, measured over 3.7 hours of normal use: 261 s of CPU time, which is 1.95 % of one core, or
+about 0.12 % of the whole 16-thread package. That is not enough to change a temperature; the GPU wake is.
+
+**The curve was chasing sensor noise.** The CPU temperature swings several degrees every few seconds at idle. Fed
+straight into the curve, the target moved every 5 s tick and the fans hunted audibly between roughly 2600 and
+3500 rpm while the machine did nothing. `AutoTick` now follows a smoothed reading (rising temperatures are taken
+immediately; falling ones decay at 40 % per tick) and ignores a downward change smaller than two levels. Upward
+moves and the 30 s keep-alive are unaffected, so nothing about the safety behaviour changes.

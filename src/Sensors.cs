@@ -1,0 +1,243 @@
+﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// Ohman — extra sensors that do not need the BIOS: ACPI thermal zone + CPU utilisation (perf counters)
+// and NVIDIA GPU stats via nvidia-smi. All reads are best-effort and never throw.
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+
+namespace Ohman {
+
+    public sealed class SensorSnapshot {
+        public double CpuTemp = double.NaN, CpuLoad = double.NaN, CpuMhz = double.NaN, CpuWatts = double.NaN;
+        public DateTime GpuRead = DateTime.MinValue;      // when the GPU numbers below were actually measured
+        public double GpuTemp = double.NaN, GpuLoad = double.NaN, GpuWatts = double.NaN, GpuMhz = double.NaN;
+        public double RamUsedGb = double.NaN, RamTotalGb = double.NaN, RamPercent = double.NaN;
+        public double VramUsedMb = double.NaN, VramTotalMb = double.NaN;
+        public bool OnBattery;
+        public int BatteryPercent = -1;
+    }
+
+    public sealed class Sensors : IDisposable {
+        PerformanceCounter[] thermals = new PerformanceCounter[0];
+        PerformanceCounter cpuUtil, cpuFreq, cpuPerf, cpuPower;
+        string nvsmi;
+        int nvFail;
+        // Asking nvidia-smi anything wakes the discrete GPU. On a hybrid laptop, asking every few seconds stops it
+        // ever reaching its deepest idle state, which costs several watts and shows up as a warmer chassis and busier
+        // fans. So: ask at the normal rate while the GPU is doing something, and back off hard once it goes quiet.
+        int gpuQuiet;
+        DateTime lastNv = DateTime.MinValue;
+        public volatile bool SkipGpu;                 // set by the UI when the machine is running on the iGPU alone
+        const int GpuIdleMs = 30000, GpuStaleMs = 45000;
+        readonly object sync = new object();
+        SensorSnapshot last = new SensorSnapshot();
+        Thread worker;
+        volatile bool stop;
+        volatile int intervalMs = 2000;
+        // Sleeping in 100 ms steps to stay responsive to Stop() costs ten timer interrupts a second for the life of
+        // the process, which is enough to keep the package out of its deeper idle states. One wait for the whole
+        // interval costs one, and the event still ends it immediately.
+        readonly ManualResetEvent wake = new ManualResetEvent(false);
+        public event Action<SensorSnapshot> Updated;
+
+        public Sensors() { }
+
+        /// <summary>Counter setup takes seconds the first time; it runs on the worker so the window is not held back.</summary>
+        void InitCounters() {
+            try {
+                // Machines expose several ACPI thermal zones and the order means nothing: one is as likely to be
+                // a skin sensor, or a constant, as the processor. Keep every zone that reads like a temperature
+                // and take the hottest on each poll; a wrong choice blinds the curve and the thermal guard alike.
+                //
+                // This did NOT fix "CPU stuck at 28 degrees". Choosing a zone once was a real bug, but the owners
+                // still reporting it have exactly one zone and it reads a constant, so there is nothing here to
+                // choose between. That needs a temperature source other than the ACPI zones.
+                var cat = new PerformanceCounterCategory("Thermal Zone Information");
+                string[] inst = cat.GetInstanceNames();
+                Array.Sort(inst);
+                var live = new List<PerformanceCounter>();
+                foreach (string name in inst) {
+                    PerformanceCounter c = null;
+                    try {
+                        c = new PerformanceCounter("Thermal Zone Information", "Temperature", name, true);
+                        double k = c.NextValue();
+                        if (k < 283 || k > 398) { c.Dispose(); continue; }     // 10 C to 125 C; anything else is not a temperature
+                        live.Add(c);
+                    } catch { if (c != null) try { c.Dispose(); } catch { } }
+                }
+                thermals = live.ToArray();
+                if (thermals.Length > 0) Log.Write("thermal zones: " + thermals.Length + " usable of " + inst.Length + ", hottest wins each poll");
+                else Log.Write("no usable thermal zone among " + inst.Length + "; CPU temperature unavailable");
+            } catch (Exception ex) { Log.Write("no thermal zone counter: " + ex.Message); }
+            try { cpuUtil = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total", true); cpuUtil.NextValue(); } catch (Exception ex) { Log.Write("no cpu util counter: " + ex.Message); }
+            // "Processor Frequency" is the *base* clock on most machines and never moves, which is what a Ryzen
+            // AI 7 350 owner saw: the number sat at base while the chip boosted. "% Processor Performance" is the
+            // one that tracks the real clock, as a percentage of base, so the two together give the actual MHz.
+            try { cpuFreq = new PerformanceCounter("Processor Information", "Processor Frequency", "_Total", true); cpuFreq.NextValue(); } catch { }
+            try { cpuPerf = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total", true); cpuPerf.NextValue(); } catch (Exception ex) { Log.Write("no cpu performance counter: " + ex.Message); }
+            // CPU package power: the Energy Meter counters (Intel RAPL through Windows' energy metering interface, no driver needed)
+            try {
+                var cat = new PerformanceCounterCategory("Energy Meter");
+                foreach (string inst in cat.GetInstanceNames())
+                    if (inst.IndexOf("PKG", StringComparison.OrdinalIgnoreCase) >= 0) { cpuPower = new PerformanceCounter("Energy Meter", "Power", inst, true); cpuPower.NextValue(); Log.Write("cpu power counter: " + inst); break; }
+            } catch (Exception ex) { Log.Write("no cpu power counter: " + ex.Message); }
+            foreach (string p in new string[] { Path.Combine(Environment.SystemDirectory, "nvidia-smi.exe"), @"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe" })
+                if (File.Exists(p)) { nvsmi = p; break; }
+            if (nvsmi == null) Log.Write("nvidia-smi not found; GPU stats disabled");
+        }
+
+        public void SetInterval(int ms) {
+            int now = Math.Max(500, ms);
+            if (now == intervalMs) return;
+            intervalMs = now;
+            if (now < 3000) wake.Set();        // going faster: take the next reading now rather than after the old wait
+        }
+
+        public void Start() {
+            if (worker != null) return;
+            worker = new Thread(Loop) { IsBackground = true, Name = "sensors" };
+            worker.Start();
+        }
+
+        void Loop() {
+            InitCounters();
+            // The first read of a delta counter has no window to divide by, so it is thrown away and the panel shows
+            // "--" until the second one. Run the first few passes fast whatever rate is configured, so a window that
+            // opens straight into the tray-rate or battery-rate schedule still has real numbers in it.
+            int warm = 3;
+            while (!stop) {
+                wake.Reset();
+                var s = new SensorSnapshot();
+                // The same 283..398 K window InitCounters uses, applied on every read and not only the first.
+                // Taking the maximum across zones means one zone reporting nonsense decides the answer for all of
+                // them, and a high enough number would hold the thermal guard on and the fans at maximum.
+                double hot = double.NaN;
+                for (int i = 0; i < thermals.Length; i++) {
+                    try {
+                        double k = thermals[i].NextValue();
+                        if (k >= 283 && k <= 398 && (double.IsNaN(hot) || k > hot)) hot = k;
+                    } catch { }
+                }
+                if (!double.IsNaN(hot)) s.CpuTemp = Math.Round(hot - 273.15, 1);
+                try { if (cpuUtil != null) s.CpuLoad = Math.Min(100, cpuUtil.NextValue()); } catch { }
+                try {
+                    if (cpuFreq != null) {
+                        double base_ = cpuFreq.NextValue();
+                        double pct = double.NaN;
+                        try { if (cpuPerf != null) pct = cpuPerf.NextValue(); } catch { }
+                        // A boosting chip reads over 100 %; a parked one reads well under. Ignore obvious nonsense.
+                        // Without the percentage there is no way to know the real clock, and the base one dressed
+                        // up as the current one is exactly the thing that got reported, so show nothing instead.
+                        s.CpuMhz = (!double.IsNaN(pct) && pct > 1 && pct < 500) ? base_ * pct / 100.0 : double.NaN;
+                    }
+                } catch { }
+                try { if (cpuPower != null) s.CpuWatts = Watts(cpuPower.NextValue() / 1000.0); } catch { }
+                try {
+                    var ps = System.Windows.Forms.SystemInformation.PowerStatus;
+                    s.OnBattery = ps.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Offline;
+                    s.BatteryPercent = (int)Math.Round(ps.BatteryLifePercent * 100);
+                } catch { }
+                ReadRam(s);
+                // nvidia-smi wakes the discrete GPU; ask it every other tick and keep the previous numbers in between
+                if (nvsmi != null && nvFail < 5 && !SkipGpu && DueForGpu(s)) { lastNv = DateTime.Now; ReadNvidia(s); NoteGpuActivity(s); if (!double.IsNaN(s.GpuTemp)) s.GpuRead = DateTime.Now; }
+                else lock (sync) { s.GpuTemp = last.GpuTemp; s.GpuLoad = last.GpuLoad; s.GpuWatts = last.GpuWatts; s.GpuMhz = last.GpuMhz; s.GpuRead = last.GpuRead; }
+                // carrying the last number forward is fine for a display; it is not fine for the fan curve, which would
+                // believe an idle GPU while a job heats it up between two backed-off reads
+                if (s.GpuRead != DateTime.MinValue && (DateTime.Now - s.GpuRead).TotalMilliseconds > GpuStaleMs) { s.GpuTemp = double.NaN; s.GpuLoad = double.NaN; s.GpuWatts = double.NaN; s.GpuMhz = double.NaN; }
+                lock (sync) last = s;
+                var h = Updated; if (h != null) { try { h(s); } catch { } }
+                wake.WaitOne(warm > 0 ? Math.Min(1000, intervalMs) : intervalMs);
+                if (warm > 0) warm--;
+            }
+        }
+
+        /// <summary>Every other tick while the GPU is busy; every 30 s once it has been idle three times running. Work
+        /// that could be heating the GPU almost always shows on the CPU first, so a busy CPU brings the rate back at once.</summary>
+        bool DueForGpu(SensorSnapshot s) {
+            bool cpuBusy = !double.IsNaN(s.CpuLoad) && s.CpuLoad > 25;
+            double want = gpuQuiet >= 3 && !cpuBusy ? GpuIdleMs : Math.Max(4000, intervalMs * 2);
+            return (DateTime.Now - lastNv).TotalMilliseconds >= want;
+        }
+        void NoteGpuActivity(SensorSnapshot s) {
+            bool busy = (!double.IsNaN(s.GpuLoad) && s.GpuLoad > 1) || (!double.IsNaN(s.GpuWatts) && s.GpuWatts >= 12);
+            if (busy) gpuQuiet = 0;
+            else if (gpuQuiet < 100) gpuQuiet++;
+        }
+        // The Energy Meter counter is an energy delta divided by the sampling window, so a short or missed window
+        // reports a number the package cannot physically draw. Drop those, then average a few readings: a watt figure
+        // that jumps 40 W between two glances reads as broken even when each sample is honest.
+        double wattsAvg = double.NaN;
+        static readonly double WattsCeiling = 200;
+        double Watts(double w) {
+            if (w <= 0 || w > WattsCeiling) return wattsAvg;                       // nothing believable this time; keep what we had
+            if (double.IsNaN(wattsAvg)) { wattsAvg = w; return w; }
+            if (w > wattsAvg * 2.5 && w > 60) return wattsAvg;                     // a single spike, not the CPU waking up
+            wattsAvg += (w - wattsAvg) * 0.45;
+            return wattsAvg;
+        }
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        class MEMORYSTATUSEX {
+            public uint dwLength;
+            public uint dwMemoryLoad;
+            public ulong ullTotalPhys;
+            public ulong ullAvailPhys;
+            public ulong ullTotalPageFile;
+            public ulong ullAvailPageFile;
+            public ulong ullTotalVirtual;
+            public ulong ullAvailVirtual;
+            public ulong ullAvailExtendedVirtual;
+            public MEMORYSTATUSEX() { dwLength = (uint)Marshal.SizeOf(typeof(MEMORYSTATUSEX)); }
+        }
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool GlobalMemoryStatusEx([In, Out] MEMORYSTATUSEX lpBuffer);
+
+        void ReadRam(SensorSnapshot s) {
+            try {
+                var mem = new MEMORYSTATUSEX();
+                if (GlobalMemoryStatusEx(mem)) {
+                    s.RamPercent = mem.dwMemoryLoad;
+                    s.RamTotalGb = Math.Round((double)mem.ullTotalPhys / (1024 * 1024 * 1024), 1);
+                    double used = (double)(mem.ullTotalPhys - mem.ullAvailPhys) / (1024 * 1024 * 1024);
+                    s.RamUsedGb = Math.Round(used, 1);
+                }
+            } catch { }
+        }
+
+        void ReadNvidia(SensorSnapshot s) {
+            try {
+                var psi = new ProcessStartInfo(nvsmi, "--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,memory.used,memory.total --format=csv,noheader,nounits") {
+                    CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true
+                };
+                using (var p = Process.Start(psi)) {
+                    string line = p.StandardOutput.ReadLine();
+                    if (!p.WaitForExit(2500)) { try { p.Kill(); } catch { } nvFail++; return; }
+                    if (string.IsNullOrEmpty(line)) { nvFail++; return; }
+                    string[] parts = line.Split(',');
+                    if (parts.Length < 4) { nvFail++; return; }             // a dropped field would shift the columns
+                    double v;
+                    if (double.TryParse(parts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v > 0 && v < 130) s.GpuTemp = v;
+                    if (double.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v >= 0 && v <= 100) s.GpuLoad = v;
+                    if (double.TryParse(parts[2].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v >= 0 && v < 250) s.GpuWatts = v;
+                    if (double.TryParse(parts[3].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v >= 100) s.GpuMhz = v;
+                    if (parts.Length >= 6) {
+                        if (double.TryParse(parts[4].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v >= 0) s.VramUsedMb = v;
+                        if (double.TryParse(parts[5].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out v) && v > 0) s.VramTotalMb = v;
+                    }
+                    nvFail = 0;
+                }
+            } catch (Exception ex) { nvFail++; if (nvFail == 5) Log.Write("nvidia-smi disabled: " + ex.Message); }
+        }
+
+        public void Dispose() {
+            stop = true;
+            wake.Set();
+            try { for (int i = 0; i < thermals.Length; i++) { try { thermals[i].Dispose(); } catch { } } if (cpuUtil != null) cpuUtil.Dispose(); if (cpuFreq != null) cpuFreq.Dispose(); if (cpuPower != null) cpuPower.Dispose(); } catch { }
+        }
+    }
+}
+
