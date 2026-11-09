@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Ohman — WPF main window (layout in the embedded Ui.xaml): a rail on the left with Home, Fans, Keyboard and
 // Settings, one page visible at a time; the window morphs to each page's size. Also the tray icon, hotkeys and the
 // live readouts. Every size and colour here comes from the panel design.
@@ -30,7 +30,7 @@ namespace Ohman {
 
     public sealed class MainWindow : Window {
         enum Page { Home = 0, Fans = 1, Keyboard = 2, Settings = 3 }
-        const double RailW = 62, PageW = 398, KbdPageW = 638, SettingsH = 640;
+        const double RailW = 62, PageW = 980, KbdPageW = 980, SettingsH = 720;
 
         Osd osd;
         public void Flash(string title, string detail, int modeIndex) {
@@ -116,7 +116,7 @@ namespace Ohman {
         ToggleButton tgSuppress, tgHotkeys, tgAutostart, tgEcoBattery, tgSyncPower, tgLowHzBattery, tgTrayTemp, tgGuard, tgUpdateAuto;
         ToggleButton tgOverlayShow, tgOverlayPin;
         TextBlock txtGuardSub, txtMaxCoolSub, txtKeyCmdHint;
-        Button btnClose;
+        Button btnClose, btnMinimize, btnMaximize, btnCloseWin;
         Border toast;
         TextBlock txtToast;
         readonly List<WF.ToolStripMenuItem> trayHz = new List<WF.ToolStripMenuItem>();
@@ -392,6 +392,9 @@ namespace Ohman {
             btnExit = F<TextBlock>("BtnExit");
             txtDiag = F<TextBlock>("TxtDiag");
             btnClose = F<Button>("BtnClose");
+            btnMinimize = F<Button>("BtnMinimize");
+            btnMaximize = F<Button>("BtnMaximize");
+            btnCloseWin = F<Button>("BtnCloseWin");
             toast = F<Border>("Toast");
             txtToast = F<TextBlock>("TxtToast");
             btnExit.Text = "Exit " + Program.DisplayName;
@@ -421,8 +424,23 @@ namespace Ohman {
         /// so content changes during a drag just resize at the end.</summary>
         bool dragging;
         void Drag() {
+            if (WindowState == WindowState.Maximized) {
+                var p = System.Windows.Forms.Cursor.Position;
+                WindowState = WindowState.Normal;
+                Left = Math.Max(0, p.X - Width / 2);
+                Top = Math.Max(0, p.Y - 18);
+            }
             dragging = true;
             try { DragMove(); } catch { } finally { dragging = false; }
+        }
+        void ToggleMaximize() {
+            if (WindowState == WindowState.Maximized) {
+                WindowState = WindowState.Normal;
+                if (btnMaximize != null) btnMaximize.Content = "\uE922";
+            } else {
+                WindowState = WindowState.Maximized;
+                if (btnMaximize != null) btnMaximize.Content = "\uE923";
+            }
         }
         void BuildRail() {
             var host = F<StackPanel>("NavHost");
@@ -958,9 +976,17 @@ namespace Ohman {
         }
 
         void Wire() {
-            foreach (string n in new[] { "HeadHome", "HeadFans", "HeadKbd", "HeadSettings", "DragStrip" })
-                F<FrameworkElement>(n).MouseLeftButtonDown += delegate(object o, MouseButtonEventArgs me) { if (me.LeftButton == MouseButtonState.Pressed) Drag(); };
+            foreach (string n in new[] { "HeadHome", "HeadFans", "HeadKbd", "HeadSettings", "DragStrip", "TitleBar" })
+                F<FrameworkElement>(n).MouseLeftButtonDown += delegate(object o, MouseButtonEventArgs me) {
+                    if (me.ClickCount == 2) {
+                        ToggleMaximize();
+                        me.Handled = true;
+                    } else if (me.LeftButton == MouseButtonState.Pressed) Drag();
+                };
             btnClose.Click += delegate { HideToTray(); };
+            if (btnCloseWin != null) btnCloseWin.Click += delegate { HideToTray(); };
+            if (btnMinimize != null) btnMinimize.Click += delegate { WindowState = WindowState.Minimized; };
+            if (btnMaximize != null) btnMaximize.Click += delegate { ToggleMaximize(); };
             powerDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             powerDebounce.Tick += delegate { powerDebounce.Stop(); int off = (int)slPower.Value; Bg(delegate { E.SetTdpOffset(off, false); }); };
             slPower.ValueChanged += delegate {

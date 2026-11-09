@@ -240,6 +240,39 @@
         </Setter.Value>
       </Setter>
     </Style>
+    <Style x:Key="WinBtn" TargetType="Button">
+      <Setter Property="Width" Value="44"/>
+      <Setter Property="Height" Value="34"/>
+      <Setter Property="Focusable" Value="False"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Foreground" Value="{StaticResource Status}"/>
+      <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+      <Setter Property="FontSize" Value="10"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="B" Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#1FFFFFFF"/><Setter Property="Foreground" Value="{StaticResource Text}"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="B" Property="Background" Value="#33FFFFFF"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="WinBtnClose" TargetType="Button" BasedOn="{StaticResource WinBtn}">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="B" Background="Transparent"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="Background" Value="#E81123"/><Setter Property="Foreground" Value="White"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="B" Property="Background" Value="#F1707A"/><Setter Property="Foreground" Value="White"/></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style TargetType="ScrollBar">
       <Setter Property="Width" Value="8"/>
       <Setter Property="Background" Value="Transparent"/>
@@ -259,54 +292,90 @@
     </Style>
   </Grid.Resources>
 
-  <Grid.ColumnDefinitions>
-    <ColumnDefinition Width="62"/>
-    <ColumnDefinition Width="*"/>
-  </Grid.ColumnDefinitions>
+  <Grid.RowDefinitions>
+    <RowDefinition Height="38"/>
+    <RowDefinition Height="*"/>
+  </Grid.RowDefinitions>
 
-  <!-- the rail: mark on top, pages below it, settings at the bottom; the pill slides between them (code) -->
-  <Border x:Name="Rail" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Line2}" BorderThickness="0,0,1,0">
-    <Grid x:Name="RailGrid">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="*"/>
-        <RowDefinition Height="Auto"/>
-      </Grid.RowDefinitions>
-      <Canvas x:Name="RailCanvas" Grid.RowSpan="3">
-        <Border x:Name="RailPill" Width="42" Height="42" CornerRadius="12" Background="{StaticResource Pill}" Opacity="0">
-          <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
-        </Border>
-      </Canvas>
-      <Grid x:Name="LogoHost" Background="Transparent" ToolTip="Home" Cursor="Hand" Margin="0,20,0,16">
-        <Border x:Name="Mark" Width="13" Height="13" CornerRadius="2" Background="{DynamicResource Accent}" RenderTransformOrigin="0.5,0.5">
+  <!-- ==================== DESKTOP TITLE BAR & TOP NAVIGATION ==================== -->
+  <Border x:Name="TitleBar" Grid.Row="0" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Line2}" BorderThickness="0,0,0,1">
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- App Brand & Icon -->
+      <StackPanel x:Name="LogoHost" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,12,0" Cursor="Hand" ToolTip="Ohman Home">
+        <Border x:Name="Mark" Width="14" Height="14" CornerRadius="2" Background="{DynamicResource Accent}" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
           <Border.RenderTransform><RotateTransform Angle="45"/></Border.RenderTransform>
         </Border>
-      </Grid>
-      <StackPanel x:Name="NavHost" Grid.Row="1"/>
-      <StackPanel x:Name="NavBottom" Grid.Row="2" Margin="0,0,0,20"/>
+        <TextBlock Text="OHMAN" FontFamily="{DynamicResource UiFont}" FontSize="13" FontWeight="Bold" Foreground="{StaticResource TextHi}" VerticalAlignment="Center" Margin="12,0,4,0"/>
+        <TextBlock Text="GAMING HUB" FontFamily="{DynamicResource UiFont}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Accent}" VerticalAlignment="Center" Margin="0,1,0,0"/>
+      </StackPanel>
+
+      <!-- Drag handle area in middle of title bar -->
+      <Border x:Name="DragStrip" Grid.Column="1" Background="Transparent" Cursor="SizeAll">
+        <StackPanel x:Name="TopNavCenter" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="16,0,0,0">
+          <TextBlock x:Name="TxtNavTitle" Text="OMEN COMPANION" Style="{StaticResource Mono}" FontSize="10" Foreground="{StaticResource Sub}" VerticalAlignment="Center"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Window Control Buttons (Minimize, Maximize/Restore, Close) -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Stretch">
+        <Button x:Name="BtnMinimize" Style="{StaticResource WinBtn}" Content="&#xE921;" ToolTip="Minimize"/>
+        <Button x:Name="BtnMaximize" Style="{StaticResource WinBtn}" Content="&#xE922;" ToolTip="Maximize"/>
+        <Button x:Name="BtnCloseWin" Style="{StaticResource WinBtnClose}" Content="&#xE8BB;" ToolTip="Close to tray (Esc)"/>
+      </StackPanel>
     </Grid>
   </Border>
 
-  <!-- the pages: one host, one visible at a time; its natural size drives the window (code) -->
-  <Grid Grid.Column="1" ClipToBounds="True">
-    <Grid x:Name="PageHost" HorizontalAlignment="Left" VerticalAlignment="Top" Width="398">
+  <!-- ==================== MAIN APPLICATION WORKSPACE ==================== -->
+  <Grid Grid.Row="1">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="62"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- Sidebar Rail -->
+    <Border x:Name="Rail" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Line2}" BorderThickness="0,0,1,0">
+      <Grid x:Name="RailGrid">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Canvas x:Name="RailCanvas" Grid.RowSpan="2">
+          <Border x:Name="RailPill" Width="42" Height="42" CornerRadius="12" Background="{StaticResource Pill}" Opacity="0">
+            <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
+          </Border>
+        </Canvas>
+        <StackPanel x:Name="NavHost" Grid.Row="0" Margin="0,12,0,0"/>
+        <StackPanel x:Name="NavBottom" Grid.Row="1" Margin="0,0,0,16"/>
+      </Grid>
+    </Border>
+
+    <!-- Main Content Area -->
+    <Grid Grid.Column="1" ClipToBounds="True">
+      <ScrollViewer x:Name="MainScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
+        <Grid x:Name="PageHost" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0">
 
       <!-- ============ HOME ============ -->
-      <StackPanel x:Name="PageHome" Margin="24,24,24,20">
+      <StackPanel x:Name="PageHome" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch">
         <Grid x:Name="HeadHome" Background="Transparent">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock x:Name="TxtHomeTitle" Style="{StaticResource Title}" Text="Balanced"/>
-            <Border x:Name="DemoBadge" Visibility="Collapsed" Margin="8,1,0,0" CornerRadius="4" Background="#33F3821D" Padding="5,1" VerticalAlignment="Center" ToolTip="Not running as administrator: hardware is simulated">
-              <TextBlock Text="DEMO" FontSize="9" FontWeight="Bold" Foreground="#F3821D" FontFamily="{DynamicResource UiFont}"/>
+            <TextBlock x:Name="TxtHomeTitle" Style="{StaticResource Title}" FontSize="18" Text="Balanced"/>
+            <Border x:Name="DemoBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33F3821D" Padding="6,2" VerticalAlignment="Center" ToolTip="Not running as administrator: hardware is simulated">
+              <TextBlock Text="DEMO" FontSize="9.5" FontWeight="Bold" Foreground="#F3821D" FontFamily="{DynamicResource UiFont}"/>
             </Border>
           </StackPanel>
-          <TextBlock x:Name="TxtHomeStatus" Style="{StaticResource Mono}" HorizontalAlignment="Right"/>
+          <TextBlock x:Name="TxtHomeStatus" Style="{StaticResource Mono}" FontSize="12" HorizontalAlignment="Right"/>
         </Grid>
 
-        <Border x:Name="ErrBanner" Visibility="Collapsed" Background="#26FF5C5C" CornerRadius="8" Padding="10,8" Margin="0,20,0,0">
+        <Border x:Name="ErrBanner" Visibility="Collapsed" Background="#26FF5C5C" CornerRadius="8" Padding="12,10" Margin="0,16,0,0">
           <TextBlock x:Name="TxtErr" Style="{StaticResource Cap}" Foreground="#FF9A9A"/>
         </Border>
-        <Border x:Name="InfoBanner" Visibility="Collapsed" Background="#1F3F8CFF" CornerRadius="8" Padding="10,8" Margin="0,20,0,0">
+        <Border x:Name="InfoBanner" Visibility="Collapsed" Background="#1F3F8CFF" CornerRadius="8" Padding="12,10" Margin="0,16,0,0">
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <TextBlock x:Name="TxtInfo" Style="{StaticResource Cap}" Foreground="#B9CDF7" Margin="0,0,10,0"/>
@@ -316,119 +385,162 @@
           </Grid>
         </Border>
 
+        <!-- Wide Telemetry Cards Grid: CPU, GPU, Fans, Memory -->
         <Grid Margin="0,20,0,0">
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/><RowDefinition Height="12"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="14"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="14"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="14"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
           <!-- CPU Card -->
-          <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="14,12">
+          <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="16,14">
             <StackPanel>
               <Grid>
-                <TextBlock Text="CPU PACKAGE" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" FontWeight="SemiBold"/>
-                <Ellipse Width="6" Height="6" Fill="#32C5F4" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                <TextBlock Text="CPU PACKAGE" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                <Ellipse Width="7" Height="7" Fill="#32C5F4" HorizontalAlignment="Right" VerticalAlignment="Center"/>
               </Grid>
-              <TextBlock Style="{StaticResource Big}" Margin="0,4,0,0"><Run x:Name="BigCpu" Text="--"/><Run Text="°C" FontSize="18" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
-              <TextBlock x:Name="SubCpu" Style="{StaticResource Cap}" Text="CPU" Margin="0,3,0,0"/>
+              <TextBlock Style="{StaticResource Big}" Margin="0,6,0,0"><Run x:Name="BigCpu" Text="--"/><Run Text="°C" FontSize="20" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
+              <TextBlock x:Name="SubCpu" Style="{StaticResource Cap}" Text="CPU" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>
+
           <!-- GPU Card -->
-          <Border Grid.Column="2" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="14,12">
+          <Border Grid.Column="2" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="16,14">
             <StackPanel>
               <Grid>
-                <TextBlock Text="GPU CORE" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" FontWeight="SemiBold"/>
-                <Ellipse Width="6" Height="6" Fill="{DynamicResource Accent}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                <TextBlock Text="GPU CORE" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                <Ellipse Width="7" Height="7" Fill="{DynamicResource Accent}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
               </Grid>
-              <TextBlock Style="{StaticResource Big}" Margin="0,4,0,0"><Run x:Name="BigGpu" Text="--"/><Run Text="°C" FontSize="18" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
-              <TextBlock x:Name="SubGpu" Style="{StaticResource Cap}" Text="GPU" Margin="0,3,0,0"/>
+              <TextBlock Style="{StaticResource Big}" Margin="0,6,0,0"><Run x:Name="BigGpu" Text="--"/><Run Text="°C" FontSize="20" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
+              <TextBlock x:Name="SubGpu" Style="{StaticResource Cap}" Text="GPU" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>
-          <!-- Fan 1 (CPU) Card -->
-          <Border Grid.Row="2" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="14,12">
+
+          <!-- System Memory (RAM) Card -->
+          <Border Grid.Column="4" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="16,14">
             <StackPanel>
               <Grid>
-                <TextBlock Text="CPU FAN" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" FontWeight="SemiBold"/>
-                <TextBlock Text="&#xE7F6;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="{StaticResource Sub}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                <TextBlock Text="SYSTEM MEMORY" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                <TextBlock x:Name="TxtRamPct" Text="--%" Style="{StaticResource Mono}" Foreground="{StaticResource TextHi}" FontSize="11" HorizontalAlignment="Right"/>
               </Grid>
-              <TextBlock Style="{StaticResource Big}" Margin="0,4,0,0"><Run x:Name="BigFan1" Text="--"/><Run Text=" rpm" FontSize="15" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
-              <TextBlock x:Name="SubFan1" Text="Left cooler" Style="{StaticResource Cap}" Margin="0,3,0,0"/>
+              <TextBlock Style="{StaticResource Big}" Margin="0,6,0,0"><Run x:Name="BigRamUsed" Text="--"/><Run x:Name="BigRamTotal" Text=" / -- GB" FontSize="14" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
+              <TextBlock Text="RAM Allocation" Style="{StaticResource Cap}" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>
-          <!-- Fan 2 (GPU) Card -->
-          <Border Grid.Row="2" Grid.Column="2" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="14,12">
+
+          <!-- CPU Fan Card -->
+          <Border Grid.Row="2" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="16,14">
             <StackPanel>
               <Grid>
-                <TextBlock Text="GPU FAN" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" FontWeight="SemiBold"/>
-                <TextBlock Text="&#xE7F6;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="{StaticResource Sub}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                <TextBlock Text="CPU FAN" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                <TextBlock Text="&#xE7F6;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource Sub}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
               </Grid>
-              <TextBlock Style="{StaticResource Big}" Margin="0,4,0,0"><Run x:Name="BigFan2" Text="--"/><Run Text=" rpm" FontSize="15" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
-              <TextBlock x:Name="SubFan2" Text="Right cooler" Style="{StaticResource Cap}" Margin="0,3,0,0"/>
+              <TextBlock Style="{StaticResource Big}" Margin="0,6,0,0"><Run x:Name="BigFan1" Text="--"/><Run Text=" rpm" FontSize="16" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
+              <TextBlock x:Name="SubFan1" Text="Left cooling blower" Style="{StaticResource Cap}" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>
-          <!-- System RAM Card -->
-          <Border Grid.Row="4" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="14,10">
+
+          <!-- GPU Fan Card -->
+          <Border Grid.Row="2" Grid.Column="2" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="16,14">
             <StackPanel>
               <Grid>
-                <TextBlock Text="SYSTEM MEMORY" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" FontWeight="SemiBold"/>
-                <TextBlock x:Name="TxtRamPct" Text="--%" Style="{StaticResource Mono}" Foreground="{StaticResource Text}" FontSize="10" HorizontalAlignment="Right"/>
+                <TextBlock Text="GPU FAN" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                <TextBlock Text="&#xE7F6;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource Sub}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
               </Grid>
-              <TextBlock Style="{StaticResource Big}" FontSize="24" LineHeight="28" Margin="0,4,0,0"><Run x:Name="BigRamUsed" Text="--"/><Run x:Name="BigRamTotal" Text=" / -- GB" FontSize="12" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
+              <TextBlock Style="{StaticResource Big}" Margin="0,6,0,0"><Run x:Name="BigFan2" Text="--"/><Run Text=" rpm" FontSize="16" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
+              <TextBlock x:Name="SubFan2" Text="Right cooling blower" Style="{StaticResource Cap}" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>
-          <!-- Video VRAM Card -->
-          <Border Grid.Row="4" Grid.Column="2" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="14,10">
+
+          <!-- Dedicated VRAM Card -->
+          <Border Grid.Row="2" Grid.Column="4" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="16,14">
             <StackPanel>
               <Grid>
-                <TextBlock Text="GPU VRAM" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" FontWeight="SemiBold"/>
-                <TextBlock x:Name="TxtVramPct" Text="--%" Style="{StaticResource Mono}" Foreground="{StaticResource Text}" FontSize="10" HorizontalAlignment="Right"/>
+                <TextBlock Text="GPU VRAM" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                <TextBlock x:Name="TxtVramPct" Text="--%" Style="{StaticResource Mono}" Foreground="{StaticResource TextHi}" FontSize="11" HorizontalAlignment="Right"/>
               </Grid>
-              <TextBlock Style="{StaticResource Big}" FontSize="24" LineHeight="28" Margin="0,4,0,0"><Run x:Name="BigVramUsed" Text="--"/><Run x:Name="BigVramTotal" Text=" / -- GB" FontSize="12" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
+              <TextBlock Style="{StaticResource Big}" Margin="0,6,0,0"><Run x:Name="BigVramUsed" Text="--"/><Run x:Name="BigVramTotal" Text=" / -- GB" FontSize="14" FontWeight="Normal" Foreground="{StaticResource Desc}"/></TextBlock>
+              <TextBlock Text="VRAM Allocation" Style="{StaticResource Cap}" Margin="0,4,0,0"/>
             </StackPanel>
           </Border>
         </Grid>
 
-        <Border x:Name="ModeHost" Margin="0,24,0,0"/>
+        <!-- Mode Selector and Quick Actions Row in a Modern Elevated Section -->
+        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="20,18" Margin="0,20,0,0">
+          <StackPanel>
+            <TextBlock Text="PERFORMANCE MODE" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,10"/>
+            <Border x:Name="ModeHost"/>
 
-        <Grid x:Name="FanRow" Margin="0,24,0,0">
-          <TextBlock Text="Fans" Style="{StaticResource Row}"/>
-          <Border x:Name="FanLinksHost" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-        </Grid>
-        <Grid x:Name="PowerRow" Margin="0,20,0,0">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-          </Grid.ColumnDefinitions>
-          <TextBlock Text="Power gain" Style="{StaticResource Row}" ToolTip="What OMEN Gaming Hub calls Smart Performance Gain: a bigger shared CPU + GPU power budget"/>
-          <Slider x:Name="SlPower" Grid.Column="1" Style="{StaticResource Sl}" Minimum="0" Maximum="15" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="18,0,18,0"/>
-          <TextBlock x:Name="TxtPower" Grid.Column="2" Style="{StaticResource MonoVal}" Width="46" Text="+0 W"/>
-        </Grid>
-        <Grid x:Name="LightRow" Margin="0,20,0,0" Background="Transparent" Cursor="Hand">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="Auto"/>
-          </Grid.ColumnDefinitions>
-          <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="Lighting" Style="{StaticResource Row}"/>
-            <TextBlock x:Name="TxtLightSub" Style="{StaticResource Cap}" Text="Static · 4 zones" Margin="0,3,0,0"/>
+            <Grid Margin="0,20,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+
+              <!-- Fan Mode Controls -->
+              <Border Background="{StaticResource Sunken}" BorderBrush="{StaticResource Line2}" BorderThickness="1" CornerRadius="10" Padding="16,12" Margin="0,0,10,0">
+                <Grid x:Name="FanRow">
+                  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                  <TextBlock Text="Fan Profile" Style="{StaticResource Row}" FontWeight="SemiBold"/>
+                  <Border x:Name="FanLinksHost" Grid.Row="1" Margin="0,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+
+              <!-- Power Gain Slider -->
+              <Border Grid.Column="1" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Line2}" BorderThickness="1" CornerRadius="10" Padding="16,12" Margin="10,0,0,0">
+                <Grid x:Name="PowerRow">
+                  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                  <Grid>
+                    <TextBlock Text="Power Gain" Style="{StaticResource Row}" FontWeight="SemiBold" ToolTip="What OMEN Gaming Hub calls Smart Performance Gain: a bigger shared CPU + GPU power budget"/>
+                    <TextBlock x:Name="TxtPower" Style="{StaticResource MonoVal}" HorizontalAlignment="Right" Width="46" Text="+0 W"/>
+                  </Grid>
+                  <Slider x:Name="SlPower" Grid.Row="1" Style="{StaticResource Sl}" Minimum="0" Maximum="15" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,12,0,0"/>
+                </Grid>
+              </Border>
+            </Grid>
+
+            <!-- Lighting Row -->
+            <Border Background="{StaticResource Sunken}" BorderBrush="{StaticResource Line2}" BorderThickness="1" CornerRadius="10" Padding="16,12" Margin="0,14,0,0">
+              <Grid x:Name="LightRow" Background="Transparent" Cursor="Hand">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="Keyboard Lighting" Style="{StaticResource Row}" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="TxtLightSub" Style="{StaticResource Cap}" Text="Static · 4 zones" Margin="0,3,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                  <Border x:Name="MiniHost" Width="145" VerticalAlignment="Center"/>
+                  <TextBlock Text="→" FontFamily="{DynamicResource UiFont}" FontSize="15" Foreground="{DynamicResource Accent}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+              </Grid>
+            </Border>
           </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <Border x:Name="MiniHost" Width="145" VerticalAlignment="Center"/>
-            <TextBlock Text="→" FontFamily="{DynamicResource UiFont}" FontSize="15" Foreground="{DynamicResource Accent}" Margin="12,0,0,0" VerticalAlignment="Center"/>
-          </StackPanel>
-        </Grid>
+        </Border>
 
-        <Border Margin="0,24,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,14,0,0">
+        <!-- Footer status -->
+        <Border Margin="0,20,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,14,0,0">
           <Grid>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-              <Ellipse x:Name="DotHb" Width="6" Height="6" Fill="#4AC06C" VerticalAlignment="Center" Margin="0,0,8,0"/>
-              <TextBlock x:Name="TxtFoot" Style="{StaticResource MonoFoot}"/>
+              <Ellipse x:Name="DotHb" Width="7" Height="7" Fill="#36D989" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <TextBlock x:Name="TxtFoot" Style="{StaticResource MonoFoot}" FontSize="11.5"/>
             </StackPanel>
-            <TextBlock x:Name="TxtFootRight" Style="{StaticResource MonoFoot}" HorizontalAlignment="Right"/>
+            <TextBlock x:Name="TxtFootRight" Style="{StaticResource MonoFoot}" FontSize="11.5" HorizontalAlignment="Right"/>
           </Grid>
         </Border>
       </StackPanel>
 
       <!-- ============ FANS ============ -->
-      <StackPanel x:Name="PageFans" Margin="24,24,24,20" Visibility="Collapsed">
+      <StackPanel x:Name="PageFans" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
         <Grid x:Name="HeadFans" Background="Transparent">
           <TextBlock Text="Fans" Style="{StaticResource Title}"/>
           <TextBlock x:Name="TxtFansStatus" Style="{StaticResource Mono}" HorizontalAlignment="Right"/>
@@ -562,7 +674,7 @@
       </StackPanel>
 
       <!-- ============ KEYBOARD ============ -->
-      <StackPanel x:Name="PageKbd" Margin="24,24,24,24" Visibility="Collapsed">
+      <StackPanel x:Name="PageKbd" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
         <Grid x:Name="HeadKbd" Background="Transparent">
           <TextBlock Text="Keyboard" Style="{StaticResource Title}"/>
           <TextBlock x:Name="TxtKbdStatus" Style="{StaticResource Mono}" HorizontalAlignment="Right"/>
@@ -641,7 +753,7 @@
       </StackPanel>
 
       <!-- ============ SETTINGS ============ -->
-      <Grid x:Name="PageSettings" Height="640" Visibility="Collapsed">
+      <Grid x:Name="PageSettings" MinHeight="600" MaxWidth="1100" HorizontalAlignment="Stretch" Margin="32,24,32,24" Visibility="Collapsed">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
@@ -853,18 +965,16 @@
           </StackPanel>
         </Border>
       </Grid>
+      </Grid>
+      </ScrollViewer>
+
+      <!-- Legacy BtnClose hook kept invisible for code compatibility -->
+      <Button x:Name="BtnClose" Visibility="Collapsed" IsHitTestVisible="False"/>
+
+      <!-- transient status, over the page bottom -->
+      <Border x:Name="Toast" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="24,0,24,14" CornerRadius="8" Background="#D4100D0B" BorderBrush="#2C2825" BorderThickness="1" Padding="12,7" Opacity="0" IsHitTestVisible="False">
+        <TextBlock x:Name="TxtToast" Style="{StaticResource Cap}" Foreground="{StaticResource Text}" TextWrapping="NoWrap"/>
+      </Border>
     </Grid>
-
-    <!-- hide to tray: invisible until the pointer is over the window, so the pages stay exactly as designed -->
-    <!-- The window has no title bar. Every page starts 24 px down, so this strip is the empty band along the top
-         edge where a person reaches to move a window, and there is no control in it to steal a click from. -->
-    <Border x:Name="DragStrip" Height="24" VerticalAlignment="Top" Background="Transparent" Cursor="SizeAll"/>
-
-    <Button x:Name="BtnClose" Style="{StaticResource IconBtn}" Content="&#xE8BB;" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Opacity="0" ToolTip="Hide (keeps running in the tray) · Esc"/>
-
-    <!-- transient status, over the page bottom -->
-    <Border x:Name="Toast" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="24,0,24,14" CornerRadius="8" Background="#D4100D0B" BorderBrush="#2C2825" BorderThickness="1" Padding="12,7" Opacity="0" IsHitTestVisible="False">
-      <TextBlock x:Name="TxtToast" Style="{StaticResource Cap}" Foreground="{StaticResource Text}" TextWrapping="NoWrap"/>
-    </Border>
   </Grid>
 </Grid>
