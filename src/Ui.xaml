@@ -642,16 +642,22 @@
         </StackPanel>
 
         <StackPanel x:Name="OptsManual" Margin="0,24,0,0" Visibility="Collapsed">
+          <Border Background="{StaticResource Sunken}" CornerRadius="8" Padding="12,10" Margin="0,0,0,16">
+            <StackPanel>
+              <TextBlock Text="PRESETS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,8"/>
+              <Border x:Name="FanPresetsHost"/>
+            </StackPanel>
+          </Border>
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <TextBlock Text="CPU fan" Style="{StaticResource Row}"/>
-            <Slider x:Name="SlFan1" Grid.Column="1" Style="{StaticResource Sl}" Minimum="18" Maximum="57" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="18,0,18,0"/>
+            <Slider x:Name="SlFan1" Grid.Column="1" Style="{StaticResource Sl}" Minimum="0" Maximum="57" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="18,0,18,0"/>
             <TextBlock x:Name="TxtFan1" Grid.Column="2" Style="{StaticResource MonoVal}"/>
           </Grid>
           <Grid Margin="0,20,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <TextBlock Text="GPU fan" Style="{StaticResource Row}"/>
-            <Slider x:Name="SlFan2" Grid.Column="1" Style="{StaticResource Sl}" Minimum="18" Maximum="57" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="18,0,18,0"/>
+            <Slider x:Name="SlFan2" Grid.Column="1" Style="{StaticResource Sl}" Minimum="0" Maximum="57" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="18,0,18,0"/>
             <TextBlock x:Name="TxtFan2" Grid.Column="2" Style="{StaticResource MonoVal}"/>
           </Grid>
           <Grid Margin="0,20,0,0">

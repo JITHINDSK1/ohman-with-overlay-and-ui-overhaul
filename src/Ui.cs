@@ -95,7 +95,7 @@ namespace Ohman {
         LinkSeg fanLinks;
         Slider slPower;
         // fans
-        Seg fanSeg, stopAfterSeg;
+        Seg fanSeg, stopAfterSeg, fanPresetsSeg;
         TextBlock txtFansStatus, txtCurveTitle, txtCurveHint, txtFan1, txtFan2, txtFanApplied, txtFanRight, btnFanAction, txtFloor, txtRamp, txtGuardNote;
         TextBlock maxFan1Sub, maxFan2Sub, maxTempSub, maxMinsSub, manSub1, manSub2;
         Run maxFan1, maxFan2, maxTemp, maxMins, maxMinsUnit, manPct1, manPct2;
@@ -634,6 +634,19 @@ namespace Ohman {
             };
             slFan1.ValueChanged += fanSlid;
             slFan2.ValueChanged += fanSlid;
+            int maxCeil = E.P.Curve.Ceiling;
+            var presetNames = new[] { "Stop", "Quiet", "Balanced", "Heavy", "Max" };
+            var presetLvls = new object[] { 0, 18, 28, 38, maxCeil };
+            fanPresetsSeg = new Seg(presetNames, null, presetLvls, Seg.Kind.Compact);
+            F<Border>("FanPresetsHost").Child = fanPresetsSeg;
+            fanPresetsSeg.Picked += delegate(int i) {
+                int lvl = (int)fanPresetsSeg.Tags[i];
+                if (lvl == 0 && !double.IsNaN(E.CpuTemp) && E.CpuTemp > 65) {
+                    ShowToast("CPU is " + (int)E.CpuTemp + "°C - Fan stop not recommended while warm", true);
+                }
+                slFan1.Value = lvl;
+                slFan2.Value = lvl;
+            };
         }
 
         void BuildSettings() {
