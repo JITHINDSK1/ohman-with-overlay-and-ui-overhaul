@@ -29,7 +29,7 @@ namespace Ohman {
 
 
     public sealed class MainWindow : Window {
-        enum Page { Home = 0, Fans = 1, Keyboard = 2, Settings = 3 }
+        enum Page { Home = 0, Fans = 1, Keyboard = 2, Settings = 3, Activity = 4, Security = 5 }
         const double RailW = 62, PageW = 980, KbdPageW = 980, SettingsH = 720;
 
         Osd osd;
@@ -47,18 +47,21 @@ namespace Ohman {
         const string ICO_UPDATE = "M12 4 V14.2 M7.6 10.2 L12 14.8 L16.4 10.2 M4.6 19 H19.4";
         const string ICO_FANS = "M3 8.5 C5.5 5.5 8.5 11.5 12 8.5 C15.5 5.5 18.5 11.5 21 8.5 M3 15.5 C5.5 12.5 8.5 18.5 12 15.5 C15.5 12.5 18.5 18.5 21 15.5";
         const string ICO_KBD = "M2.5 7.5 A2 2 0 0 1 4.5 5.5 H19.5 A2 2 0 0 1 21.5 7.5 V16.5 A2 2 0 0 1 19.5 18.5 H4.5 A2 2 0 0 1 2.5 16.5 Z M6 9.5 H6.4 M9.8 9.5 H10.2 M13.6 9.5 H14 M17.4 9.5 H17.8 M6 12.5 H6.4 M9.8 12.5 H10.2 M13.6 12.5 H14 M17.4 12.5 H17.8 M7.5 15.5 H16.5";
+        const string ICO_ACTIVITY = "M2 13 H6 L9 5 L14 19 L17 11 L19 13 H22";
+        const string ICO_SECURITY = "M12 3 L4 6 V12 C4 17 8 20.5 12 22 C16 20.5 20 17 20 12 V6 Z";
 
         readonly Engine E;
         readonly Sensors sensors;
+        readonly ProcessMonitor procMon;
         readonly string screenshotPath;
         readonly bool openSettings;
         FrameworkElement root;
         Grid pageHost;
         ScrollViewer scroll;
-        readonly FrameworkElement[] pages = new FrameworkElement[4];
+        readonly FrameworkElement[] pages = new FrameworkElement[6];
         Page cur = Page.Home;
         bool pageShown;
-        readonly NavBtn[] nav = new NavBtn[4];
+        readonly NavBtn[] nav = new NavBtn[6];
         Border railPill;
         TranslateTransform railPillT;
         Canvas railCanvas;
@@ -66,6 +69,21 @@ namespace Ohman {
         StackPanel navBottom;
         ColorSource accentSrc;
         SolidColorBrush accent;
+        // activity
+        TextBlock txtActivityStatus, txtActivityFoot, txtProcSearch;
+        Border alertBadge, procSearchHost;
+        TextBlock alertBadgeText;
+        StackPanel procList, terminatedList;
+        Seg procFilterSeg;
+        int procFilterMode = 0;
+        string procSearchQuery = "";
+        DispatcherTimer procRefreshTimer;
+        // security
+        TextBlock txtSecurityStatus, txtSecurityFoot, txtAlertCpu, txtAlertRam, btnClearAlerts, txtNoAlerts;
+        Border secAlertBadge;
+        TextBlock secAlertBadgeText;
+        Slider slAlertCpu, slAlertRam;
+        StackPanel alertList;
         // home
         TextBlock txtHomeTitle, txtHomeStatus, subCpu, subGpu, txtPower, txtFoot, txtFootRight, txtLightSub, txtErr, txtInfo, btnSupport, btnReset;
         Run bigCpu, bigGpu, bigFan1, bigFan2, bigRamUsed, bigRamTotal, bigVramUsed, bigVramTotal;
@@ -148,9 +166,13 @@ namespace Ohman {
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr wp, IntPtr lp);
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
 
-        public MainWindow(Engine engine, Sensors s, string screenshot, bool settingsOpen) {
+        public MainWindow(Engine engine, Sensors s, string screenshot, bool settingsOpen)
+            : this(engine, s, null, screenshot, settingsOpen) { }
+
+        public MainWindow(Engine engine, Sensors s, ProcessMonitor pm, string screenshot, bool settingsOpen) {
             E = engine;
             sensors = s;
+            procMon = pm ?? new ProcessMonitor();
             screenshotPath = screenshot;
             openSettings = settingsOpen;
             Ui.LoadFonts();
@@ -180,6 +202,8 @@ namespace Ohman {
             BuildFans();
             BuildKeyboard();
             BuildSettings();
+            BuildActivity();
+            BuildSecurity();
             BuildIcons();
             BuildTray();
             Wire();
@@ -225,6 +249,9 @@ namespace Ohman {
             PollRate();
             UpdateOverlay();
             Refresh();
+            procRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            procRefreshTimer.Tick += delegate { if (IsVisible && cur == Page.Activity) RefreshActivity(); UpdateAlertBadges(); };
+            procRefreshTimer.Start();
             if (!E.BiosOk && !E.Hw.IsDemo) ShowToast("BIOS interface unavailable: " + E.LastError, true);
             else if (E.LastError.Length > 0) ShowToast(E.LastError, true);      // a write already failed during Init, before this handler existed
             QueryAutostartAsync();
@@ -261,6 +288,27 @@ namespace Ohman {
             pages[1] = F<FrameworkElement>("PageFans");
             pages[2] = F<FrameworkElement>("PageKbd");
             pages[3] = F<FrameworkElement>("PageSettings");
+            pages[4] = F<FrameworkElement>("PageActivity");
+            pages[5] = F<FrameworkElement>("PageSecurity");
+            alertBadge = F<Border>("AlertBadge");
+            alertBadgeText = F<TextBlock>("AlertBadgeText");
+            txtActivityStatus = F<TextBlock>("TxtActivityStatus");
+            procSearchHost = F<Border>("ProcSearchHost");
+            txtProcSearch = F<TextBlock>("TxtProcSearch");
+            procList = F<StackPanel>("ProcList");
+            terminatedList = F<StackPanel>("TerminatedList");
+            txtActivityFoot = F<TextBlock>("TxtActivityFoot");
+            secAlertBadge = F<Border>("SecAlertBadge");
+            secAlertBadgeText = F<TextBlock>("SecAlertBadgeText");
+            txtSecurityStatus = F<TextBlock>("TxtSecurityStatus");
+            slAlertCpu = F<Slider>("SlAlertCpu");
+            txtAlertCpu = F<TextBlock>("TxtAlertCpu");
+            slAlertRam = F<Slider>("SlAlertRam");
+            txtAlertRam = F<TextBlock>("TxtAlertRam");
+            alertList = F<StackPanel>("AlertList");
+            btnClearAlerts = F<TextBlock>("BtnClearAlerts");
+            txtNoAlerts = F<TextBlock>("TxtNoAlerts");
+            txtSecurityFoot = F<TextBlock>("TxtSecurityFoot");
             txtHomeTitle = F<TextBlock>("TxtHomeTitle");
             txtHomeStatus = F<TextBlock>("TxtHomeStatus");
             demoBadge = F<FrameworkElement>("DemoBadge");
@@ -450,10 +498,14 @@ namespace Ohman {
             nav[1] = new NavBtn(1, "Fans", new[] { ICO_FANS }, new string[0]);
             nav[2] = new NavBtn(2, "Keyboard", new[] { ICO_KBD }, new string[0]);
             nav[3] = new NavBtn(3, "Settings", new string[0], new[] { GearPath(12, 12, 10, 7.6, 8, 3.4) });
-            for (int i = 0; i < 4; i++) { nav[i].HorizontalAlignment = HorizontalAlignment.Center; nav[i].Clicked += delegate(int idx) { Navigate((Page)idx, true); }; }
+            nav[4] = new NavBtn(4, "Activity", new[] { ICO_ACTIVITY }, new string[0]);
+            nav[5] = new NavBtn(5, "Security", new[] { ICO_SECURITY }, new string[0]);
+            for (int i = 0; i < 6; i++) { nav[i].HorizontalAlignment = HorizontalAlignment.Center; nav[i].Clicked += delegate(int idx) { Navigate((Page)idx, true); }; }
             host.Children.Add(nav[0]);
             host.Children.Add(nav[1]);
             host.Children.Add(nav[2]);
+            host.Children.Add(nav[4]);
+            host.Children.Add(nav[5]);
             // Above Settings, and only while there is something to install. It is a signpost rather than a page:
             // it goes where the update lives instead of doing anything itself, so nothing is one stray click from
             // restarting the app. It stays out of nav[] deliberately -- the rail pill tracks the current page, and
@@ -976,7 +1028,7 @@ namespace Ohman {
         }
 
         void Wire() {
-            foreach (string n in new[] { "HeadHome", "HeadFans", "HeadKbd", "HeadSettings", "DragStrip", "TitleBar" })
+            foreach (string n in new[] { "HeadHome", "HeadFans", "HeadKbd", "HeadSettings", "HeadActivity", "HeadSecurity", "DragStrip", "TitleBar" })
                 F<FrameworkElement>(n).MouseLeftButtonDown += delegate(object o, MouseButtonEventArgs me) {
                     if (me.ClickCount == 2) {
                         ToggleMaximize();
@@ -1004,9 +1056,9 @@ namespace Ohman {
             pageShown = true;
             var page = pages[(int)p];
             bool live = animate && screenshotPath == null && IsVisible && old != null && old != page;
-            for (int i = 0; i < 4; i++) if (pages[i] != page && !(live && pages[i] == old)) ShowPage(pages[i], false);
+            for (int i = 0; i < pages.Length; i++) if (pages[i] != page && !(live && pages[i] == old)) ShowPage(pages[i], false);
             pageHost.Width = p == Page.Keyboard ? KbdPageW : PageW;
-            for (int i = 0; i < 4; i++) nav[i].SetSelected(i == (int)p);
+            for (int i = 0; i < nav.Length; i++) nav[i].SetSelected(i == (int)p);
             if (p == Page.Keyboard) ApplyEditorState();
             else if (wasKbd) RefreshLighting();
             if (p == Page.Settings) {
@@ -1017,6 +1069,8 @@ namespace Ohman {
                 txtMachine.Text = E.Hw.IsDemo && screenshotPath == null ? "simulated hardware" : (E.BiosOk ? "board " + E.Board : "firmware unavailable");
             }
             if (p == Page.Fans) RefreshFans(false);
+            if (p == Page.Activity) RefreshActivity();
+            if (p == Page.Security) RefreshSecurity();
             // the page has to be Visible before Morph measures it: a Collapsed element reports no desired size at all
             if (!live) ShowPage(page, true);
             else { page.BeginAnimation(UIElement.OpacityProperty, null); page.Opacity = 0; page.IsHitTestVisible = true; page.RenderTransform = null; page.Visibility = Visibility.Visible; }
@@ -1130,6 +1184,7 @@ namespace Ohman {
         /// current page counts: the outgoing one is still in the host while it fades.</summary>
         double NaturalHeight() {
             if (cur == Page.Settings) return SettingsH;
+            if (cur == Page.Activity || cur == Page.Security) return 720;
             var page = pages[(int)cur];
             if (page == null || pageHost.Width <= 0) return 0;
             page.Measure(new Size(pageHost.Width, double.PositiveInfinity));
@@ -1529,6 +1584,302 @@ namespace Ohman {
         string Level(int level) {
             if (level < 0) return "--";
             return E.P.RpmPerLevel > 0 ? (level * E.P.RpmPerLevel).ToString(CultureInfo.InvariantCulture) : E.Percent(level).TrimEnd('%');
+        }
+
+        // ---------- activity & security monitor ----------
+        void BuildActivity() {
+            procFilterSeg = new Seg(new[] { "All", "High CPU", "High RAM", "Suspicious" }, null, null, Seg.Kind.Compact);
+            F<Border>("ProcFilterHost").Child = procFilterSeg;
+            procFilterSeg.Picked += delegate(int i) {
+                procFilterMode = i;
+                RefreshActivity();
+            };
+            if (procMon != null) {
+                procMon.Updated += delegate(List<ProcessInfo> snap, List<ActivityAlert> newAlerts) {
+                    Dispatcher.BeginInvoke((Action)delegate {
+                        UpdateAlertBadges();
+                        if (cur == Page.Activity && IsVisible) RefreshActivity();
+                        if (cur == Page.Security && IsVisible) RefreshSecurity();
+                    });
+                };
+            }
+        }
+
+        void RefreshActivity() {
+            if (procList == null || procMon == null) return;
+            procList.Children.Clear();
+            var all = procMon.Current();
+            var filtered = new List<ProcessInfo>();
+
+            for (int i = 0; i < all.Count; i++) {
+                var p = all[i];
+                if (procFilterMode == 1 && p.CpuPct < 5.0) continue;
+                if (procFilterMode == 2 && p.RamMb < 100) continue;
+                if (procFilterMode == 3 && !p.InTempDir && (p.IsSystemProcess || (p.CpuPct < 30 && p.RamMb < 1024))) continue;
+                filtered.Add(p);
+            }
+
+            if (procFilterMode == 2) {
+                filtered.Sort(delegate(ProcessInfo a, ProcessInfo b) { return b.RamMb.CompareTo(a.RamMb); });
+            } else {
+                filtered.Sort(delegate(ProcessInfo a, ProcessInfo b) { return b.CpuPct.CompareTo(a.CpuPct); });
+            }
+
+            int count = 0;
+            for (int i = 0; i < filtered.Count; i++) {
+                if (count++ >= 16) break;
+                var p = filtered[i];
+
+                var row = new Border {
+                    Background = Ui.Sunken,
+                    CornerRadius = new CornerRadius(6),
+                    Margin = new Thickness(6, 2, 6, 2),
+                    Padding = new Thickness(12, 8, 12, 8)
+                };
+                var g = new Grid();
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
+
+                var nameSp = new StackPanel();
+                var txtName = new TextBlock {
+                    Text = p.Name,
+                    FontFamily = Ui.UiFont,
+                    FontSize = 12.5,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = Ui.TextHi
+                };
+                string sub = p.Publisher.Length > 0 ? p.Publisher : (p.SafeDir.Length > 0 ? p.SafeDir : (p.IsSystemProcess ? "Windows system" : ""));
+                if (sub.Length > 45) sub = sub.Substring(0, 45) + "...";
+                var txtSub = new TextBlock {
+                    Text = sub,
+                    FontFamily = Ui.UiFont,
+                    FontSize = 10,
+                    Foreground = Ui.Sub,
+                    Margin = new Thickness(0, 1, 0, 0)
+                };
+                nameSp.Children.Add(txtName);
+                if (sub.Length > 0) nameSp.Children.Add(txtSub);
+
+                var txtCpu = new TextBlock {
+                    Text = p.CpuPct >= 0.1 ? p.CpuPct.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "0%",
+                    FontFamily = Ui.MonoFont,
+                    FontSize = 12,
+                    Foreground = p.CpuPct >= 50 ? Ui.Brush(Ui.Danger) : p.CpuPct >= 20 ? Ui.Brush(Ui.Warn) : Ui.TextB,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(txtCpu, 1);
+
+                var txtRam = new TextBlock {
+                    Text = p.RamMb.ToString(CultureInfo.InvariantCulture) + " MB",
+                    FontFamily = Ui.MonoFont,
+                    FontSize = 12,
+                    Foreground = p.RamMb >= 2048 ? Ui.Brush(Ui.Warn) : Ui.TextB,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(txtRam, 2);
+
+                var txtPid = new TextBlock {
+                    Text = p.Pid.ToString(CultureInfo.InvariantCulture),
+                    FontFamily = Ui.MonoFont,
+                    FontSize = 11,
+                    Foreground = Ui.Sub,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(txtPid, 3);
+
+                g.Children.Add(nameSp);
+                g.Children.Add(txtCpu);
+                g.Children.Add(txtRam);
+                g.Children.Add(txtPid);
+                row.Child = g;
+                procList.Children.Add(row);
+            }
+
+            if (count == 0) {
+                procList.Children.Add(new TextBlock {
+                    Text = "No processes match the current filter",
+                    Style = (Style)root.Resources["Hint"],
+                    Margin = new Thickness(14, 12, 14, 12)
+                });
+            }
+
+            if (terminatedList != null) {
+                terminatedList.Children.Clear();
+                var hist = procMon.History();
+                int hCount = 0;
+                for (int i = 0; i < hist.Count; i++) {
+                    if (hCount++ >= 6) break;
+                    var p = hist[i];
+                    var hRow = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+                    hRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    hRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    var tName = new TextBlock {
+                        Text = p.Name + " (" + p.Pid + ")",
+                        FontFamily = Ui.UiFont,
+                        FontSize = 11.5,
+                        Foreground = Ui.Desc,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    string dur = p.EndTime != DateTime.MinValue && p.StartTime != DateTime.MinValue && p.EndTime >= p.StartTime
+                        ? ((p.EndTime - p.StartTime).TotalSeconds < 60
+                            ? (int)(p.EndTime - p.StartTime).TotalSeconds + "s lifetime"
+                            : (int)(p.EndTime - p.StartTime).TotalMinutes + "m lifetime")
+                        : "ended " + p.EndTime.ToString("HH:mm:ss");
+
+                    var tTime = new TextBlock {
+                        Text = dur,
+                        FontFamily = Ui.MonoFont,
+                        FontSize = 10.5,
+                        Foreground = Ui.Sub,
+                        HorizontalAlignment = HorizontalAlignment.Right,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(tTime, 1);
+                    hRow.Children.Add(tName);
+                    hRow.Children.Add(tTime);
+                    terminatedList.Children.Add(hRow);
+                }
+                if (hCount == 0) {
+                    terminatedList.Children.Add(new TextBlock {
+                        Text = "No recent process terminations recorded",
+                        Style = (Style)root.Resources["Hint"],
+                        Margin = new Thickness(0, 4, 0, 4)
+                    });
+                }
+            }
+
+            if (txtActivityStatus != null) {
+                txtActivityStatus.Text = all.Count + " active processes";
+            }
+        }
+
+        void BuildSecurity() {
+            if (procMon != null) {
+                slAlertCpu.Value = procMon.Settings.CpuSpikeThreshold;
+                slAlertRam.Value = procMon.Settings.RamHighMb;
+                txtAlertCpu.Text = (int)procMon.Settings.CpuSpikeThreshold + "%";
+                txtAlertRam.Text = procMon.Settings.RamHighMb + " MB";
+            }
+            slAlertCpu.ValueChanged += delegate {
+                int v = (int)slAlertCpu.Value;
+                txtAlertCpu.Text = v + "%";
+                if (procMon != null) procMon.Settings.CpuSpikeThreshold = v;
+            };
+            slAlertRam.ValueChanged += delegate {
+                int v = (int)slAlertRam.Value;
+                txtAlertRam.Text = v + " MB";
+                if (procMon != null) procMon.Settings.RamHighMb = v;
+            };
+            if (btnClearAlerts != null) {
+                btnClearAlerts.MouseLeftButtonUp += delegate {
+                    if (procMon != null) procMon.ClearAlerts();
+                    RefreshSecurity();
+                    UpdateAlertBadges();
+                };
+            }
+        }
+
+        void RefreshSecurity() {
+            if (alertList == null || procMon == null) return;
+            alertList.Children.Clear();
+            var alerts = procMon.Alerts();
+            if (txtNoAlerts != null) txtNoAlerts.Visibility = alerts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            for (int i = 0; i < alerts.Count; i++) {
+                var a = alerts[i];
+                var card = new Border {
+                    Background = Ui.Sunken,
+                    BorderBrush = a.Severity >= AlertSeverity.High ? Ui.Brush(Ui.Danger) : Ui.Line,
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8),
+                    Padding = new Thickness(14, 10, 14, 10),
+                    Margin = new Thickness(0, 4, 0, 4)
+                };
+                var sp = new StackPanel();
+                var g = new Grid();
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var titleSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                var dot = new Ellipse {
+                    Width = 7, Height = 7,
+                    Fill = a.Severity >= AlertSeverity.High ? Ui.Brush(Ui.Danger) : a.Severity >= AlertSeverity.Medium ? Ui.Brush(Ui.Warn) : Ui.Brush(Ui.Ok),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 8, 0)
+                };
+                var tTitle = new TextBlock {
+                    Text = a.ProcessName + " (PID " + a.Pid + ")",
+                    FontFamily = Ui.UiFont,
+                    FontSize = 13,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = Ui.TextHi,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                titleSp.Children.Add(dot);
+                titleSp.Children.Add(tTitle);
+
+                var tWhen = new TextBlock {
+                    Text = a.When.ToString("HH:mm:ss"),
+                    FontFamily = Ui.MonoFont,
+                    FontSize = 10.5,
+                    Foreground = Ui.Sub,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(tWhen, 1);
+                g.Children.Add(titleSp);
+                g.Children.Add(tWhen);
+                sp.Children.Add(g);
+
+                if (!string.IsNullOrEmpty(a.Path)) {
+                    var tPath = new TextBlock {
+                        Text = a.Path,
+                        FontFamily = Ui.MonoFont,
+                        FontSize = 10,
+                        Foreground = Ui.Sub,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        Margin = new Thickness(15, 3, 0, 0)
+                    };
+                    sp.Children.Add(tPath);
+                }
+
+                if (a.Indicators != null) {
+                    for (int j = 0; j < a.Indicators.Length; j++) {
+                        var tInd = new TextBlock {
+                            Text = "- " + a.Indicators[j],
+                            FontFamily = Ui.UiFont,
+                            FontSize = 11.5,
+                            Foreground = a.Severity >= AlertSeverity.High ? Ui.Brush(Ui.Danger) : Ui.Brush(Ui.Warn),
+                            Margin = new Thickness(15, 2, 0, 0)
+                        };
+                        sp.Children.Add(tInd);
+                    }
+                }
+                card.Child = sp;
+                alertList.Children.Add(card);
+            }
+
+            if (txtSecurityStatus != null) {
+                txtSecurityStatus.Text = alerts.Count == 0 ? "All quiet" : alerts.Count + " alerts";
+            }
+        }
+
+        void UpdateAlertBadges() {
+            int unack = procMon != null ? procMon.UnacknowledgedAlerts : 0;
+            if (alertBadge != null) {
+                alertBadge.Visibility = unack > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (alertBadgeText != null) alertBadgeText.Text = unack.ToString(CultureInfo.InvariantCulture);
+            }
+            if (secAlertBadge != null) {
+                secAlertBadge.Visibility = unack > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (secAlertBadgeText != null) secAlertBadgeText.Text = unack.ToString(CultureInfo.InvariantCulture);
+            }
         }
 
         // ---------- refresh rate, graphics, key command, tray temperature ----------
@@ -1960,6 +2311,8 @@ namespace Ohman {
             if (page == "fans") Navigate(Page.Fans, false);
             else if (page == "keyboard" && E.Light != null) Navigate(Page.Keyboard, false);
             else if (page == "settings") Navigate(Page.Settings, false);
+            else if (page == "activity") Navigate(Page.Activity, false);
+            else if (page == "security") Navigate(Page.Security, false);
             else if (page == "update") ShowUpdateRow();          // where the rail button goes: settings, at the update row
             Morph(false);
             if (Program.JustUpdated) ShowToast("Updated to " + Program.Version, false);
@@ -2051,6 +2404,8 @@ namespace Ohman {
             if (resetting) { try { E.S.Delete(); } catch { } } else { try { E.S.Save(); } catch { } }
             try { UnregisterHotkeys(); } catch { }
             try { uiTimer.Stop(); } catch { }
+            try { if (procRefreshTimer != null) procRefreshTimer.Stop(); } catch { }
+            try { if (procMon != null) procMon.Dispose(); } catch { }
             try { Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerMode; } catch { }
             try { if (tray != null) { tray.Visible = false; tray.Dispose(); } } catch { }
             try { if (osd != null) osd.Close(); } catch { }

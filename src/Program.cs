@@ -105,13 +105,15 @@ namespace Ohman {
             engine.Init();
             var sensors = new Sensors();
             sensors.Start();
+            var procMon = new ProcessMonitor();
+            procMon.Start();
 
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             AppDomain.CurrentDomain.UnhandledException += delegate(object o, UnhandledExceptionEventArgs e) { Log.Write("UNHANDLED: " + e.ExceptionObject); };
             app.DispatcherUnhandledException += delegate(object o, System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e) { Log.Write("UI EXCEPTION: " + e.Exception); e.Handled = true; };
 
             MainWindow win;
-            try { win = new MainWindow(engine, sensors, shot, settings); }
+            try { win = new MainWindow(engine, sensors, procMon, shot, settings); }
             catch (Exception ex) {
                 Log.Write("window init failed: " + ex);
                 MessageBox.Show(AppName + " could not build its window:\n\n" + ex.Message + "\n\nSee " + FileStem + ".log.", AppName, MessageBoxButton.OK, MessageBoxImage.Error);
