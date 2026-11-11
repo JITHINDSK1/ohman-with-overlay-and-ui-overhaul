@@ -31,10 +31,10 @@ namespace Ohman {
         public static SolidColorBrush Brush(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
         public static SolidColorBrush Brush(Rgb c) { return Brush(Color.FromRgb(c.R, c.G, c.B)); }
         public static Color Col(string hex) { return (Color)ColorConverter.ConvertFromString(hex); }
-        public static readonly Color EcoColor = Col("#36D989"), BalColor = Col("#E32636"), PerfColor = Col("#FF3B4A");
+        public static readonly Color EcoColor = Col("#36D989"), BalColor = Col("#E32636"), PerfColor = Col("#FF3B4A"), EmeColor = Col("#FF1E27");
         public static readonly Color Warn = Col("#FFB547"), Danger = Col("#FF4D5A"), Ok = Col("#36D989");
         public static readonly Color TelemetryCyan = Col("#32C5F4");
-        public static Color ModeColor(int i) { return i == 0 ? EcoColor : i == 2 ? PerfColor : BalColor; }
+        public static Color ModeColor(int i) { return i == 0 ? EcoColor : i == 1 ? BalColor : i == 2 ? PerfColor : EmeColor; }
         /// <summary>c moved t of the way towards towards, in straight sRGB: enough for a short accent ramp.</summary>
         public static Color Mix(Color c, Color towards, double t) {
             return Color.FromRgb((byte)(c.R + (towards.R - c.R) * t), (byte)(c.G + (towards.G - c.G) * t), (byte)(c.B + (towards.B - c.B) * t));

@@ -139,9 +139,12 @@ namespace Ohman {
         TextBlock txtToast;
         readonly List<WF.ToolStripMenuItem> trayHz = new List<WF.ToolStripMenuItem>();
         WF.NotifyIcon tray;
-        readonly WF.ToolStripMenuItem[] trayModes = new WF.ToolStripMenuItem[3];
-        readonly SD.Icon[] icons = new SD.Icon[3];
-        readonly BitmapSource[] appIcons = new BitmapSource[3];
+        readonly WF.ToolStripMenuItem[] trayModes = new WF.ToolStripMenuItem[4];
+        readonly SD.Icon[] icons = new SD.Icon[4];
+        readonly BitmapSource[] appIcons = new BitmapSource[4];
+        Border emeBadge, emeFanBadge, batteryFanBanner;
+        TextBlock txtBatteryFanBanner, txtTableMaxNote;
+        ScrollViewer activityScroll, securityScroll;
         bool syncing, exiting, reading, autostart;
         int shownMode = -1, lastBiosTemp = -1;
         int[] lastFans;
@@ -155,7 +158,8 @@ namespace Ohman {
         static readonly string[] ModeSubs = {
             "Windows efficiency mode · GPU base power",
             "Default thermal policy · GPU boost",
-            "Performance thermal policy · GPU max"
+            "Performance thermal policy · GPU max",
+            "Extreme Mode · Unrestricted battery fan control & max cooling"
         };
 
         const int WM_HOTKEY = 0x0312;
@@ -312,6 +316,13 @@ namespace Ohman {
             txtHomeTitle = F<TextBlock>("TxtHomeTitle");
             txtHomeStatus = F<TextBlock>("TxtHomeStatus");
             demoBadge = F<FrameworkElement>("DemoBadge");
+            emeBadge = F<Border>("EmeBadge");
+            emeFanBadge = F<Border>("EmeFanBadge");
+            batteryFanBanner = F<Border>("BatteryFanBanner");
+            txtBatteryFanBanner = F<TextBlock>("TxtBatteryFanBanner");
+            txtTableMaxNote = F<TextBlock>("TxtTableMaxNote");
+            activityScroll = F<ScrollViewer>("ActivityScroll");
+            securityScroll = F<ScrollViewer>("SecurityScroll");
             errBanner = F<FrameworkElement>("ErrBanner");
             txtErr = F<TextBlock>("TxtErr");
             infoBanner = F<FrameworkElement>("InfoBanner");
@@ -463,7 +474,16 @@ namespace Ohman {
         /// changing Maximum coerces Value, which raises ValueChanged, which would look like the user moving it.</summary>
         void Bounds() {
             slFan1.Minimum = slFan2.Minimum = 0;
-            slFan1.Maximum = slFan2.Maximum = E.P.Curve.Ceiling;
+            int maxLevel = E.Supports5700Rpm ? 57 : E.HardwareFanTableMax;
+            slFan1.Maximum = slFan2.Maximum = maxLevel;
+            if (txtTableMaxNote != null) {
+                if (E.Supports5700Rpm) {
+                    txtTableMaxNote.Text = "Hardware validated: fan speeds supported up to 5,700 RPM (118.75%).";
+                } else {
+                    int hwMax = E.HardwareFanTableMax;
+                    txtTableMaxNote.Text = "Hardware EC fan table caps maximum speed at " + (hwMax * 100) + " RPM (" + E.Percent(hwMax) + "). 5,700 RPM is not supported by this firmware.";
+                }
+            }
             slFloor.Minimum = E.P.Curve.Floor;
             slFloor.Maximum = E.P.Curve.Floor + (E.P.Curve.Ceiling - E.P.Curve.Floor) * 2 / 3;
             slPower.Maximum = E.MaxOffset;
@@ -634,12 +654,15 @@ namespace Ohman {
             };
             slFan1.ValueChanged += fanSlid;
             slFan2.ValueChanged += fanSlid;
-            int maxCeil = E.P.Curve.Ceiling;
-            var presetNames = new[] { "Stop", "Quiet", "Balanced", "Heavy", "Max" };
-            var presetLvls = new object[] { 0, 18, 28, 38, maxCeil };
+            var presetNames = new[] { "Fan Stop", "Low", "Medium", "High", "Maximum" };
+            var presetLvls = new object[] { 0, 1, 18, 23, 48 };
             fanPresetsSeg = new Seg(presetNames, null, presetLvls, Seg.Kind.Compact);
             F<Border>("FanPresetsHost").Child = fanPresetsSeg;
             fanPresetsSeg.Picked += delegate(int i) {
+                if (onBattery && !E.IsEme) {
+                    ShowToast("Fan presets on battery require EME mode", true);
+                    return;
+                }
                 int lvl = (int)fanPresetsSeg.Tags[i];
                 if (lvl == 0 && !double.IsNaN(E.CpuTemp) && E.CpuTemp > 65) {
                     ShowToast("CPU is " + (int)E.CpuTemp + "°C - Fan stop not recommended while warm", true);
@@ -821,7 +844,7 @@ namespace Ohman {
                 Program.DisplayName, MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes;
         }
         void BuildIcons() {
-            for (int i = 0; i < 3; i++) icons[i] = MakeIcon(Ui.ModeColor(i), 32);     // tray: 32 px, the mark fills the box
+            for (int i = 0; i < 4; i++) icons[i] = MakeIcon(Ui.ModeColor(i), 32);     // tray: 32 px, the mark fills the box
         }
         void SetAppIcon(int mode) {
             try {
@@ -960,7 +983,7 @@ namespace Ohman {
             var head = new WF.ToolStripMenuItem(Program.DisplayName + "   " + Program.Version) { Enabled = false };
             menu.Items.Add(head);
             menu.Items.Add(new WF.ToolStripSeparator());
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 4; i++) {
                 int idx = i;
                 var it = Item(Engine.ModeNames[i], delegate { ApplyModeAsync(idx); });
                 trayModes[i] = it;
@@ -1019,7 +1042,7 @@ namespace Ohman {
         void RefreshTray() {
             if (tray == null) return;
             var S = E.S;
-            for (int i = 0; i < 3; i++) trayModes[i].Checked = i == E.ModeIndex;
+            for (int i = 0; i < 4; i++) trayModes[i].Checked = i == E.ModeIndex;
             for (int i = 0; i < trayFan.Count; i++) trayFan[i].Checked = S.Fan == Choice.FanModes[i];
             int hzNow = Display.CurrentHz();
             foreach (var it in trayHz) it.Checked = (int)it.Tag == hzNow;
@@ -1532,6 +1555,24 @@ namespace Ohman {
                 manPct2.Text = Pct(S.Fan2).TrimEnd('%');
                 manSub1.Text = E.Rpm(S.Fan1) + " · CPU fan";
                 manSub2.Text = E.Rpm(S.Fan2) + " · GPU fan";
+                if (emeBadge != null) emeBadge.Visibility = E.IsEme ? Visibility.Visible : Visibility.Collapsed;
+                if (emeFanBadge != null) emeFanBadge.Visibility = E.IsEme ? Visibility.Visible : Visibility.Collapsed;
+                if (batteryFanBanner != null && txtBatteryFanBanner != null) {
+                    if (onBattery) {
+                        batteryFanBanner.Visibility = Visibility.Visible;
+                        if (E.IsEme) {
+                            batteryFanBanner.Background = Ui.Brush(Ui.Col("#26FF1E27"));
+                            txtBatteryFanBanner.Foreground = Ui.Brush(Ui.Col("#FF6B72"));
+                            txtBatteryFanBanner.Text = "⚡ EME Active: Battery fan control unrestricted. High fan speeds reduce battery runtime.";
+                        } else {
+                            batteryFanBanner.Background = Ui.Brush(Ui.Col("#26FFB547"));
+                            txtBatteryFanBanner.Foreground = Ui.Brush(Ui.Col("#FFD580"));
+                            txtBatteryFanBanner.Text = "🔋 Battery fan lock: Firmware DC curve active. Switch to EME mode to enable manual fan control.";
+                        }
+                    } else {
+                        batteryFanBanner.Visibility = Visibility.Collapsed;
+                    }
+                }
                 UpdateCurveLive();
                 UpdateMaxBlock();
                 UpdateFanStatus();
@@ -1640,7 +1681,7 @@ namespace Ohman {
 
             int count = 0;
             for (int i = 0; i < filtered.Count; i++) {
-                if (count++ >= 16) break;
+                if (count++ >= 100) break;
                 var p = filtered[i];
 
                 var row = new Border {
@@ -1726,7 +1767,7 @@ namespace Ohman {
                 var hist = procMon.History();
                 int hCount = 0;
                 for (int i = 0; i < hist.Count; i++) {
-                    if (hCount++ >= 6) break;
+                    if (hCount++ >= 30) break;
                     var p = hist[i];
                     var hRow = new Grid { Margin = new Thickness(0, 3, 0, 3) };
                     hRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -2066,6 +2107,23 @@ namespace Ohman {
         }
 
         void ApplyModeAsync(int idx) {
+            if (idx == 3 && !E.S.EmeConfirmed) {
+                var res = MessageBox.Show(
+                    "Extreme Mode (EME) enables full manual fan control and maximum speeds while running on battery power.\n\n" +
+                    "• High fan speeds on battery will increase power consumption and reduce battery runtime.\n" +
+                    "• Fan noise will increase accordingly.\n" +
+                    "• Hardware thermal safeguards remain active.\n\n" +
+                    "Do you wish to enable Extreme Mode?",
+                    "Enable Extreme Mode (EME)?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (res != MessageBoxResult.Yes) {
+                    SelectMode(E.ModeIndex, false);
+                    return;
+                }
+                E.S.EmeConfirmed = true;
+                E.S.Save();
+            }
             SelectMode(idx, true);
             Bg(delegate { E.SetMode(idx, false); });
         }
@@ -2125,6 +2183,7 @@ namespace Ohman {
                 tgOverlayPin.IsChecked = S.OverlayPin;
                 UpdateOverlay();
                 demoBadge.Visibility = E.Hw.IsDemo && screenshotPath == null ? Visibility.Visible : Visibility.Collapsed;
+                if (emeBadge != null) emeBadge.Visibility = E.IsEme ? Visibility.Visible : Visibility.Collapsed;
                 bool err = (!E.BiosOk || E.ReadOnly) && !E.Hw.IsDemo;
                 errBanner.Visibility = err ? Visibility.Visible : Visibility.Collapsed;
                 if (err) txtErr.Text = !E.BiosOk ? "BIOS interface unavailable: " + E.LastError
@@ -2224,7 +2283,7 @@ namespace Ohman {
             }
         }
         void CycleWithFlash() {
-            int next = (E.ModeIndex + 1) % 3;
+            int next = (E.ModeIndex + 1) % 4;
             Flash(Engine.ModeNames[next] + " mode", ModeSubs[next], next);
             ApplyModeAsync(next);
         }
@@ -2294,24 +2353,25 @@ namespace Ohman {
             RegisterHotKey(h, 1, MOD_CONTROL | MOD_ALT, (uint)'E');
             RegisterHotKey(h, 2, MOD_CONTROL | MOD_ALT, (uint)'B');
             RegisterHotKey(h, 3, MOD_CONTROL | MOD_ALT, (uint)'P');
-            RegisterHotKey(h, 4, MOD_CONTROL | MOD_ALT, (uint)'M');
-            RegisterHotKey(h, 5, MOD_CONTROL | MOD_ALT, (uint)'O');
-            if (!RegisterHotKey(h, 6, MOD_SHIFT, VK_F11)) Log.Write("hotkey Shift+F11 not available");   // next to the OMEN key: cycles modes
+            RegisterHotKey(h, 4, MOD_CONTROL | MOD_ALT, (uint)'X');
+            RegisterHotKey(h, 5, MOD_CONTROL | MOD_ALT, (uint)'M');
+            RegisterHotKey(h, 6, MOD_CONTROL | MOD_ALT, (uint)'O');
+            if (!RegisterHotKey(h, 7, MOD_SHIFT, VK_F11)) Log.Write("hotkey Shift+F11 not available");   // next to the OMEN key: cycles modes
             hotkeysRegistered = true;
         }
         void UnregisterHotkeys() {
             if (!hotkeysRegistered) return;
             var h = new WindowInteropHelper(this).Handle;
-            for (int i = 1; i <= 6; i++) UnregisterHotKey(h, i);
+            for (int i = 1; i <= 7; i++) UnregisterHotKey(h, i);
             hotkeysRegistered = false;
         }
         IntPtr Hook(IntPtr h, int msg, IntPtr wp, IntPtr lp, ref bool handled) {
             if (msg == WM_HOTKEY) {
                 int id = wp.ToInt32();
-                if (id >= 1 && id <= 3) { Flash(Engine.ModeNames[id - 1] + " mode", ModeSubs[id - 1], id - 1); ApplyModeAsync(id - 1); }
-                else if (id == 4) ToggleMaxWithFlash();
-                else if (id == 5) TogglePanel();
-                else if (id == 6) CycleWithFlash();
+                if (id >= 1 && id <= 4) { Flash(Engine.ModeNames[id - 1] + " mode", ModeSubs[id - 1], id - 1); ApplyModeAsync(id - 1); }
+                else if (id == 5) ToggleMaxWithFlash();
+                else if (id == 6) TogglePanel();
+                else if (id == 7) CycleWithFlash();
                 handled = true;
             }
             return IntPtr.Zero;

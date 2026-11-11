@@ -368,6 +368,9 @@
             <Border x:Name="DemoBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33F3821D" Padding="6,2" VerticalAlignment="Center" ToolTip="Not running as administrator: hardware is simulated">
               <TextBlock Text="DEMO" FontSize="9.5" FontWeight="Bold" Foreground="#F3821D" FontFamily="{DynamicResource UiFont}"/>
             </Border>
+            <Border x:Name="EmeBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33FF1E27" Padding="6,2" VerticalAlignment="Center" ToolTip="Extreme Mode Active: Battery fan control unrestricted">
+              <TextBlock Text="EME ACTIVE" FontSize="9.5" FontWeight="Bold" Foreground="#FF1E27" FontFamily="{DynamicResource UiFont}"/>
+            </Border>
           </StackPanel>
           <TextBlock x:Name="TxtHomeStatus" Style="{StaticResource Mono}" FontSize="12" HorizontalAlignment="Right"/>
         </Grid>
@@ -542,9 +545,17 @@
       <!-- ============ FANS ============ -->
       <StackPanel x:Name="PageFans" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
         <Grid x:Name="HeadFans" Background="Transparent">
-          <TextBlock Text="Fans" Style="{StaticResource Title}"/>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="Fans" Style="{StaticResource Title}"/>
+            <Border x:Name="EmeFanBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33FF1E27" Padding="6,2" VerticalAlignment="Center" ToolTip="Extreme Mode Active">
+              <TextBlock Text="EME ACTIVE" FontSize="9.5" FontWeight="Bold" Foreground="#FF1E27" FontFamily="{DynamicResource UiFont}"/>
+            </Border>
+          </StackPanel>
           <TextBlock x:Name="TxtFansStatus" Style="{StaticResource Mono}" HorizontalAlignment="Right"/>
         </Grid>
+        <Border x:Name="BatteryFanBanner" Visibility="Collapsed" CornerRadius="8" Padding="12,8" Margin="0,14,0,0">
+          <TextBlock x:Name="TxtBatteryFanBanner" Style="{StaticResource Cap}"/>
+        </Border>
         <Border x:Name="FanSegHost" Margin="0,24,0,0"/>
 
         <!-- Auto and Curve: the graph -->
@@ -667,6 +678,10 @@
           <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
             <Ellipse Width="6" Height="6" Fill="#F3821D" VerticalAlignment="Center" Margin="0,0,9,0"/>
             <TextBlock x:Name="TxtGuardNote" Style="{StaticResource Cap}" Foreground="{StaticResource Hex}" TextWrapping="NoWrap" Text="Ohman forces max fan above 90° CPU"/>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+            <Ellipse Width="6" Height="6" Fill="#3F8CFF" VerticalAlignment="Center" Margin="0,0,9,0"/>
+            <TextBlock x:Name="TxtTableMaxNote" Style="{StaticResource Cap}" Foreground="{StaticResource Hex}" TextWrapping="Wrap"/>
           </StackPanel>
         </StackPanel>
 
@@ -975,69 +990,90 @@
       </ScrollViewer>
 
       <!-- ============ ACTIVITY MONITOR ============ -->
-      <StackPanel x:Name="PageActivity" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
-        <Grid x:Name="HeadActivity" Background="Transparent">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="Activity" Style="{StaticResource Title}"/>
-            <Border x:Name="AlertBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33E32636" Padding="6,2" VerticalAlignment="Center">
-              <TextBlock x:Name="AlertBadgeText" Text="0" FontSize="9.5" FontWeight="Bold" Foreground="#E32636" FontFamily="{DynamicResource UiFont}"/>
+      <Grid x:Name="PageActivity" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header and Filter bar -->
+        <StackPanel Grid.Row="0">
+          <Grid x:Name="HeadActivity" Background="Transparent">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <TextBlock Text="Activity" Style="{StaticResource Title}"/>
+              <Border x:Name="AlertBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33E32636" Padding="6,2" VerticalAlignment="Center">
+                <TextBlock x:Name="AlertBadgeText" Text="0" FontSize="9.5" FontWeight="Bold" Foreground="#E32636" FontFamily="{DynamicResource UiFont}"/>
+              </Border>
+            </StackPanel>
+            <TextBlock x:Name="TxtActivityStatus" Style="{StaticResource Mono}" FontSize="12" HorizontalAlignment="Right" Text="Monitoring"/>
+          </Grid>
+
+          <!-- Filter bar -->
+          <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,20,0,0">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <Border x:Name="ProcFilterHost" HorizontalAlignment="Left"/>
+              <Border x:Name="ProcSearchHost" Grid.Column="1" Background="{StaticResource Sunken}" CornerRadius="6" Padding="8,4" VerticalAlignment="Center">
+                <TextBlock x:Name="TxtProcSearch" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="11" Text="Search processes..." Width="130"/>
+              </Border>
+            </Grid>
+          </Border>
+        </StackPanel>
+
+        <!-- Scrollable process lists and sections -->
+        <ScrollViewer x:Name="ActivityScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,12,0,0">
+          <StackPanel Margin="0,0,8,0">
+            <!-- Process list header -->
+            <Border Background="{StaticResource Sunken}" CornerRadius="8" Padding="12,8">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="70"/>
+                  <ColumnDefinition Width="70"/>
+                  <ColumnDefinition Width="70"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="PROCESS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                <TextBlock Text="CPU %" Grid.Column="1" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                <TextBlock Text="RAM MB" Grid.Column="2" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                <TextBlock Text="PID" Grid.Column="3" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+              </Grid>
+            </Border>
+
+            <!-- Process rows container -->
+            <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Margin="0,4,0,0">
+              <StackPanel x:Name="ProcList" Margin="0,4,0,4"/>
+            </Border>
+
+            <!-- Terminated processes section -->
+            <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,12,0,0">
+              <StackPanel>
+                <TextBlock Text="RECENTLY ENDED" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <StackPanel x:Name="TerminatedList"/>
+              </StackPanel>
             </Border>
           </StackPanel>
-          <TextBlock x:Name="TxtActivityStatus" Style="{StaticResource Mono}" FontSize="12" HorizontalAlignment="Right" Text="Monitoring"/>
-        </Grid>
-
-        <!-- Filter bar -->
-        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,20,0,0">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Border x:Name="ProcFilterHost" HorizontalAlignment="Left"/>
-            <Border x:Name="ProcSearchHost" Grid.Column="1" Background="{StaticResource Sunken}" CornerRadius="6" Padding="8,4" VerticalAlignment="Center">
-              <TextBlock x:Name="TxtProcSearch" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="11" Text="Search processes..." Width="130"/>
-            </Border>
-          </Grid>
-        </Border>
-
-        <!-- Process list header -->
-        <Border Background="{StaticResource Sunken}" CornerRadius="8" Padding="12,8" Margin="0,12,0,0">
-          <Grid>
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="70"/>
-              <ColumnDefinition Width="70"/>
-              <ColumnDefinition Width="70"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Text="PROCESS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
-            <TextBlock Text="CPU %" Grid.Column="1" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-            <TextBlock Text="RAM MB" Grid.Column="2" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-            <TextBlock Text="PID" Grid.Column="3" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-          </Grid>
-        </Border>
-
-        <!-- Process rows container -->
-        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Margin="0,4,0,0">
-          <StackPanel x:Name="ProcList" Margin="0,4,0,4"/>
-        </Border>
-
-        <!-- Terminated processes section -->
-        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,12,0,0">
-          <StackPanel>
-            <TextBlock Text="RECENTLY ENDED" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,8"/>
-            <StackPanel x:Name="TerminatedList"/>
-          </StackPanel>
-        </Border>
+        </ScrollViewer>
 
         <!-- Footer -->
-        <Border Margin="0,20,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,14,0,0">
+        <Border Grid.Row="2" Margin="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
           <TextBlock x:Name="TxtActivityFoot" Style="{StaticResource MonoFoot}" FontSize="11.5" Text="Polling every 3 seconds"/>
         </Border>
-      </StackPanel>
+      </Grid>
 
       <!-- ============ SECURITY MONITOR ============ -->
-      <StackPanel x:Name="PageSecurity" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
-        <Grid x:Name="HeadSecurity" Background="Transparent">
+      <Grid x:Name="PageSecurity" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid x:Name="HeadSecurity" Grid.Row="0" Background="Transparent">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock Text="Security" Style="{StaticResource Title}"/>
             <Border x:Name="SecAlertBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33E32636" Padding="6,2" VerticalAlignment="Center">
@@ -1047,50 +1083,55 @@
           <TextBlock x:Name="TxtSecurityStatus" Style="{StaticResource Mono}" FontSize="12" HorizontalAlignment="Right" Text="Watching"/>
         </Grid>
 
-        <!-- Alert thresholds config -->
-        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,20,0,0">
-          <StackPanel>
-            <TextBlock Text="DETECTION THRESHOLDS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="52"/>
-              </Grid.ColumnDefinitions>
-              <TextBlock Text="CPU spike" Style="{StaticResource Row}" VerticalAlignment="Center" Width="100"/>
-              <Slider x:Name="SlAlertCpu" Grid.Column="1" Style="{StaticResource Sl}" Minimum="30" Maximum="95" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" Margin="12,0,12,0"/>
-              <TextBlock x:Name="TxtAlertCpu" Grid.Column="2" Style="{StaticResource MonoVal}" Text="60%"/>
-            </Grid>
-            <Grid Margin="0,16,0,0">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="52"/>
-              </Grid.ColumnDefinitions>
-              <TextBlock Text="RAM spike" Style="{StaticResource Row}" VerticalAlignment="Center" Width="100"/>
-              <Slider x:Name="SlAlertRam" Grid.Column="1" Style="{StaticResource Sl}" Minimum="200" Maximum="4096" IsSnapToTickEnabled="True" TickFrequency="100" VerticalAlignment="Center" Margin="12,0,12,0"/>
-              <TextBlock x:Name="TxtAlertRam" Grid.Column="2" Style="{StaticResource MonoVal}" Text="800 MB"/>
-            </Grid>
-          </StackPanel>
-        </Border>
+        <!-- Scrollable content -->
+        <ScrollViewer x:Name="SecurityScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,16,0,0">
+          <StackPanel Margin="0,0,8,0">
+            <!-- Alert thresholds config -->
+            <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14">
+              <StackPanel>
+                <TextBlock Text="DETECTION THRESHOLDS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="52"/>
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="CPU spike" Style="{StaticResource Row}" VerticalAlignment="Center" Width="100"/>
+                  <Slider x:Name="SlAlertCpu" Grid.Column="1" Style="{StaticResource Sl}" Minimum="30" Maximum="95" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" Margin="12,0,12,0"/>
+                  <TextBlock x:Name="TxtAlertCpu" Grid.Column="2" Style="{StaticResource MonoVal}" Text="60%"/>
+                </Grid>
+                <Grid Margin="0,16,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="52"/>
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="RAM spike" Style="{StaticResource Row}" VerticalAlignment="Center" Width="100"/>
+                  <Slider x:Name="SlAlertRam" Grid.Column="1" Style="{StaticResource Sl}" Minimum="200" Maximum="4096" IsSnapToTickEnabled="True" TickFrequency="100" VerticalAlignment="Center" Margin="12,0,12,0"/>
+                  <TextBlock x:Name="TxtAlertRam" Grid.Column="2" Style="{StaticResource MonoVal}" Text="800 MB"/>
+                </Grid>
+              </StackPanel>
+            </Border>
 
-        <!-- Alert list section -->
-        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,12,0,0">
-          <StackPanel>
-            <Grid Margin="0,0,0,10">
-              <TextBlock Text="ALERTS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
-              <TextBlock x:Name="BtnClearAlerts" Style="{StaticResource Link}" FontFamily="{DynamicResource MonoFont}" FontSize="11" HorizontalAlignment="Right" Text="Clear all" VerticalAlignment="Center"/>
-            </Grid>
-            <StackPanel x:Name="AlertList"/>
-            <TextBlock x:Name="TxtNoAlerts" Text="No alerts yet. Ohman watches for unusual CPU/RAM spikes and processes running from suspicious locations." Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+            <!-- Alert list section -->
+            <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,12,0,0">
+              <StackPanel>
+                <Grid Margin="0,0,0,10">
+                  <TextBlock Text="ALERTS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  <TextBlock x:Name="BtnClearAlerts" Style="{StaticResource Link}" FontFamily="{DynamicResource MonoFont}" FontSize="11" HorizontalAlignment="Right" Text="Clear all" VerticalAlignment="Center"/>
+                </Grid>
+                <StackPanel x:Name="AlertList"/>
+                <TextBlock x:Name="TxtNoAlerts" Text="No alerts yet. Ohman watches for unusual CPU/RAM spikes and processes running from suspicious locations." Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+              </StackPanel>
+            </Border>
           </StackPanel>
-        </Border>
+        </ScrollViewer>
 
         <!-- Footer -->
-        <Border Margin="0,20,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,14,0,0">
+        <Border Grid.Row="2" Margin="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
           <TextBlock x:Name="TxtSecurityFoot" Style="{StaticResource MonoFoot}" FontSize="11.5" Text="Detection only · no automatic actions taken"/>
         </Border>
-      </StackPanel>
+      </Grid>
 
       <!-- Legacy BtnClose hook kept invisible for code compatibility -->
       <Button x:Name="BtnClose" Visibility="Collapsed" IsHitTestVisible="False"/>
