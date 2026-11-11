@@ -688,7 +688,7 @@ namespace Ohman {
         public void ApplyAll(bool announce) {
             lock (applySync) {
                 if (!BiosOk && !Hw.IsDemo) return;
-                Try(delegate { Hw.SetMode(ModeByte, OnBattery && !IsEme); }, "Set mode");
+                Try(delegate { Hw.SetMode(ModeByte, false); }, "Set mode");
                 ApplyFanCore();
                 ApplyPowerCore();
                 ApplyGpuCore();
@@ -734,8 +734,8 @@ namespace Ohman {
 
         bool WriteLevels(int l1, int l2, string what) {
             if (fanLevelsRefused) return false;
-            if (OnBattery && !IsEme) {
-                Log.Write("skipped fan write on battery: EME mode required for battery fan control");
+            if (OnBattery && !IsEme && S.Fan == FanMode.Manual && (l1 > 0 || l2 > 0)) {
+                Log.Write("skipped manual fan write on battery: EME mode required for battery fan control");
                 return false;
             }
             int ceiling = IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
@@ -805,34 +805,34 @@ namespace Ohman {
             FanCurve curve = S.Fan == FanMode.Custom ? CustomCurve() : P.Curve;
             int[] target = curve.Target(smoothCpu, smoothGpu, IrTemp);
             
-            // Automatic zero-RPM below 45°C (independent per CPU and GPU)
-            // In Quiet mode (0): fans stay off even if it hits 60°C, and only turn on at 70°C.
-            if (ModeIndex == 0) {
-                if (double.IsNaN(smoothCpu)) cpuZeroRpmActive = false;
-                else if (smoothCpu >= 70.0) cpuZeroRpmActive = false; // only turns on at 70°C
-                else if (smoothCpu < 70.0 && (cpuZeroRpmActive || smoothCpu < 45.0 || curLevel1 <= 0)) cpuZeroRpmActive = true; // stays off below 70°C
-
-                if (double.IsNaN(smoothGpu)) gpuZeroRpmActive = false;
-                else if (smoothGpu >= 70.0) gpuZeroRpmActive = false; // only turns on at 70°C
-                else if (smoothGpu < 70.0 && (gpuZeroRpmActive || smoothGpu < 45.0 || curLevel2 <= 0)) gpuZeroRpmActive = true; // stays off below 70°C
+            // Automatic zero-RPM in any mode if under 45°C or if temperature is unknown ("doesn't know what to do").
+            // Fans MUST stay at 0 RPM until and unless temperature is explicitly over 45°C (or over 70°C in Quiet mode).
+            // 1. CPU Fan:
+            bool cpuKnown = !double.IsNaN(smoothCpu);
+            if (!cpuKnown || smoothCpu <= 45.0) {
+                cpuZeroRpmActive = true;
+            } else if (ModeIndex == 0) {
+                // In Quiet mode: stays off even if it hits 60°C, and only turns on at 70°C
+                if (smoothCpu >= 70.0) cpuZeroRpmActive = false;
+                else if (cpuZeroRpmActive || curLevel1 <= 0) cpuZeroRpmActive = true;
+                else cpuZeroRpmActive = false;
             } else {
-                // Normal modes (Balanced, Performance, EME):
-                // Turn off under 45°C, restart at 50°C hysteresis
-                if (double.IsNaN(smoothCpu)) {
-                    cpuZeroRpmActive = false;
-                } else if (smoothCpu < 45.0) {
-                    cpuZeroRpmActive = true;
-                } else if (smoothCpu >= 50.0) {
-                    cpuZeroRpmActive = false;
-                }
+                // In all other modes (Balanced, Performance, EME): turns on when over 45°C
+                cpuZeroRpmActive = false;
+            }
 
-                if (double.IsNaN(smoothGpu)) {
-                    gpuZeroRpmActive = false;
-                } else if (smoothGpu < 45.0) {
-                    gpuZeroRpmActive = true;
-                } else if (smoothGpu >= 50.0) {
-                    gpuZeroRpmActive = false;
-                }
+            // 2. GPU Fan (completely independent):
+            bool gpuKnown = !double.IsNaN(smoothGpu);
+            if (!gpuKnown || smoothGpu <= 45.0) {
+                gpuZeroRpmActive = true;
+            } else if (ModeIndex == 0) {
+                // In Quiet mode: stays off even if it hits 60°C, and only turns on at 70°C
+                if (smoothGpu >= 70.0) gpuZeroRpmActive = false;
+                else if (gpuZeroRpmActive || curLevel2 <= 0) gpuZeroRpmActive = true;
+                else gpuZeroRpmActive = false;
+            } else {
+                // In all other modes (Balanced, Performance, EME): turns on when over 45°C
+                gpuZeroRpmActive = false;
             }
 
             if (cpuZeroRpmActive) target[0] = 0;
@@ -842,8 +842,9 @@ namespace Ohman {
             int n2 = immediate ? target[1] : curve.Step(curLevel2, target[1]);
             bool changed = n1 != curLevel1 || n2 != curLevel2;
             bool refresh = (DateTime.Now - lastFanWrite).TotalSeconds >= 30;     // keep-alive even when steady
-            // a change smaller than the deadband is not worth a write, unless it is on its way up or we are refreshing
+            // a change smaller than the deadband is not worth a write, unless it is on its way up, refreshing, or either fan is dropping to 0 (off)
             if (changed && !immediate && !refresh && curLevel1 > 0 && n1 <= curLevel1 && n2 <= curLevel2
+                && n1 > 0 && n2 > 0
                 && Math.Abs(n1 - curLevel1) < Deadband && Math.Abs(n2 - curLevel2) < Deadband) changed = false;
             if (!changed && !refresh) return;
             bool ok = WriteLevels(n1, n2, "Fan curve");
@@ -942,7 +943,7 @@ namespace Ohman {
             NoteFanMode(S.Fan);                                      // the new mode brings its own fan setting with it
             lock (applySync) {
                 // the mode's own profile comes with it: fans, power gain and GPU power are remembered per mode
-                if (Try(delegate { Hw.SetMode(ModeByte, OnBattery && !IsEme); }, "Set mode")) { if (announce) Say(ModeName + " mode"); }
+                if (Try(delegate { Hw.SetMode(ModeByte, false); }, "Set mode")) { if (announce) Say(ModeName + " mode"); }
                 if (!GuardActive) { ApplyFanCore(); lastFanWrite = DateTime.Now; }
                 ApplyPowerCore();
                 ApplyGpuCore();
@@ -954,7 +955,7 @@ namespace Ohman {
         public void SetEcoCool(bool on) {
             S.EcoCool = on;
             S.Save();
-            if (ModeIndex == 0) lock (applySync) Try(delegate { Hw.SetMode(ModeByte, OnBattery && !IsEme); }, "Set mode");
+            if (ModeIndex == 0) lock (applySync) Try(delegate { Hw.SetMode(ModeByte, false); }, "Set mode");
             Changed();
         }
         public void SetFan(FanMode mode, int f1, int f2, bool announce) {
@@ -1038,7 +1039,7 @@ namespace Ohman {
                 
                 lock (applySync) {
                     if (Emergency71Active || GuardActive) MaxFan(true, "Guard max fan");
-                    Try(delegate { Hw.SetMode(ModeByte, OnBattery && !IsEme); }, "Set mode");   // fans are handled by FanTick; this only pins mode and power
+                    Try(delegate { Hw.SetMode(ModeByte, false); }, "Set mode");   // fans are handled by FanTick; this only pins mode and power
                     ApplyPowerCore();
                     LastHeartbeat = DateTime.Now;
                 }
@@ -1155,7 +1156,7 @@ namespace Ohman {
                 if (onBattery && !ecoForcedByBattery && ModeIndex != 0) { ecoForcedByBattery = true; modeBeforeBattery = ModeIndex; S.SavedModeOverride = modeBeforeBattery; Say("On battery → Eco"); SetModeCore(0, false); return; }
                 if (!onBattery && ecoForcedByBattery) { ecoForcedByBattery = false; S.SavedModeOverride = -1; SetModeCore(modeBeforeBattery, false); Say("Plugged in → " + ModeName); return; }
             }
-            if (changed) lock (applySync) Try(delegate { Hw.SetMode(ModeByte, OnBattery && !IsEme); }, "Set mode");   // re-send with the DC flag like OGH
+            if (changed) lock (applySync) Try(delegate { Hw.SetMode(ModeByte, false); }, "Set mode");
         }
 
         // ---------- OGH suppression ----------
