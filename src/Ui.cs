@@ -474,19 +474,26 @@ namespace Ohman {
         /// changing Maximum coerces Value, which raises ValueChanged, which would look like the user moving it.</summary>
         void Bounds() {
             slFan1.Minimum = slFan2.Minimum = 0;
-            int maxLevel = E.Supports5700Rpm ? 57 : E.HardwareFanTableMax;
-            slFan1.Maximum = slFan2.Maximum = maxLevel;
-            if (txtTableMaxNote != null) {
-                if (E.Supports5700Rpm) {
-                    txtTableMaxNote.Text = "Hardware validated: fan speeds supported up to 5,700 RPM (118.75%).";
-                } else {
-                    int hwMax = E.HardwareFanTableMax;
-                    txtTableMaxNote.Text = "Hardware EC fan table caps maximum speed at " + (hwMax * 100) + " RPM (" + E.Percent(hwMax) + "). 5,700 RPM is not supported by this firmware.";
-                }
-            }
+            UpdateFanSliderLimits();
             slFloor.Minimum = E.P.Curve.Floor;
             slFloor.Maximum = E.P.Curve.Floor + (E.P.Curve.Ceiling - E.P.Curve.Floor) * 2 / 3;
             slPower.Maximum = E.MaxOffset;
+        }
+
+        void UpdateFanSliderLimits() {
+            int maxLevel = (E.IsEme || E.Supports5700Rpm) ? 57 : E.HardwareFanTableMax;
+            if (slFan1 != null) slFan1.Maximum = maxLevel;
+            if (slFan2 != null) slFan2.Maximum = maxLevel;
+            if (txtTableMaxNote != null) {
+                if (E.IsEme) {
+                    txtTableMaxNote.Text = "⚡ EME Extreme Mode: Fan ceiling unlocked up to 5,700 RPM (118.75%).";
+                } else if (E.Supports5700Rpm) {
+                    txtTableMaxNote.Text = "Hardware validated: fan speeds supported up to 5,700 RPM (118.75%).";
+                } else {
+                    int hwMax = E.HardwareFanTableMax;
+                    txtTableMaxNote.Text = "Hardware EC fan table caps maximum speed at " + (hwMax * 100) + " RPM (" + E.Percent(hwMax) + "). Switch to EME mode to enable 5,700 RPM.";
+                }
+            }
         }
         /// <summary>DragMove runs its own modal move loop; a morph started inside it would fight USER for the position,
         /// so content changes during a drag just resize at the end.</summary>
@@ -664,6 +671,7 @@ namespace Ohman {
                     return;
                 }
                 int lvl = (int)fanPresetsSeg.Tags[i];
+                if (i == 4 && E.IsEme) lvl = 57;
                 if (lvl == 0 && !double.IsNaN(E.CpuTemp) && E.CpuTemp > 65) {
                     ShowToast("CPU is " + (int)E.CpuTemp + "°C - Fan stop not recommended while warm", true);
                 }
@@ -1573,6 +1581,7 @@ namespace Ohman {
                         batteryFanBanner.Visibility = Visibility.Collapsed;
                     }
                 }
+                UpdateFanSliderLimits();
                 UpdateCurveLive();
                 UpdateMaxBlock();
                 UpdateFanStatus();
@@ -2131,6 +2140,7 @@ namespace Ohman {
             modeSeg.Select(idx, animate && IsVisible);
             txtHomeTitle.Text = Engine.ModeNames[idx];
             if (shownMode != idx) { shownMode = idx; SetAccent(idx, animate && IsVisible); SetAppIcon(idx); try { tray.Icon = icons[idx]; } catch { } }
+            UpdateFanSliderLimits();
         }
 
         public void Refresh() {

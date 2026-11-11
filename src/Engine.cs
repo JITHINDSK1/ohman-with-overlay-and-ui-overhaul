@@ -503,14 +503,15 @@ namespace Ohman {
                         case FanMode.Auto: case FanMode.Custom: AutoTick(false); break;
                         case FanMode.Manual:
                             if (curLevel1 == 0 || curLevel2 == 0) {
+                                double restartLimit = (ModeIndex == 0) ? 70.0 : 50.0;
                                 double cTemp = CpuTemp, gTemp = GpuTemp;
-                                bool needRestart = (!double.IsNaN(cTemp) && cTemp >= 50.0) || (!double.IsNaN(gTemp) && gTemp >= 50.0);
+                                bool needRestart = (!double.IsNaN(cTemp) && cTemp >= restartLimit) || (!double.IsNaN(gTemp) && gTemp >= restartLimit);
                                 if (needRestart) {
                                     int r1 = curLevel1 == 0 ? 18 : curLevel1;
                                     int r2 = curLevel2 == 0 ? 18 : curLevel2;
-                                    WriteLevels(r1, r2, "Thermal safety: auto-restart above 50°C");
+                                    WriteLevels(r1, r2, "Thermal safety: auto-restart above " + (int)restartLimit + "°C");
                                     S.Fan1 = r1; S.Fan2 = r2; S.Save();
-                                    Say("Thermal safety: Temp reached 50°C, restarting fans to prevent heat buildup");
+                                    Say("Thermal safety: Temp reached " + (int)restartLimit + "°C, restarting fans to prevent heat buildup");
                                     lastFanWrite = DateTime.Now;
                                     break;
                                 }
@@ -518,9 +519,9 @@ namespace Ohman {
                             if ((DateTime.Now - lastFanWrite).TotalSeconds >= 30) { WriteLevels(S.Fan1, S.Fan2, "Fan level"); lastFanWrite = DateTime.Now; }
                             break;
                         case FanMode.Max:
-                            int maxLvl = Math.Min(48, P.Curve.Ceiling);
+                            int maxLvl = IsEme ? 57 : Math.Min(48, P.Curve.Ceiling);
                             if ((DateTime.Now - lastFanWrite).TotalSeconds >= 30) {
-                                WriteLevels(maxLvl, maxLvl, "Max fan (4800 RPM cap)");
+                                WriteLevels(maxLvl, maxLvl, IsEme ? "Max fan (EME 5700 RPM)" : "Max fan (4800 RPM cap)");
                                 lastFanWrite = DateTime.Now;
                             }
                             if (MaxShouldStop()) { Log.Write("max fan: " + maxStopReason + ", back to auto"); leaveMax = true; }
@@ -726,18 +727,20 @@ namespace Ohman {
         const int FanWriteGiveUp = 8;
         bool fanLevelsRefused;
 
+        int ClampLevel(int level, int ceiling) {
+            if (level == 0 || level == 1) return level;
+            return Math.Max(P.Curve.Floor, Math.Min(ceiling, level));
+        }
+
         bool WriteLevels(int l1, int l2, string what) {
             if (fanLevelsRefused) return false;
             if (OnBattery && !IsEme) {
                 Log.Write("skipped fan write on battery: EME mode required for battery fan control");
                 return false;
             }
-            // ClampOrOff, not Clamp. Clamp floors at the profile's own Floor, which is 18 on every profile we
-            // ship, so it turned every 0 back into 18 on the way out - the last step of the path, after the
-            // editor, the sliders and the settings had all been taught to carry one. The whole of "let the fans
-            // stop" was inert and the only place it showed was the fans not stopping.
-            l1 = P.Curve.ClampOrOff(l1);
-            l2 = P.Curve.ClampOrOff(l2);
+            int ceiling = IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
+            l1 = ClampLevel(l1, ceiling);
+            l2 = ClampLevel(l2, ceiling);
             if (Try(delegate { Hw.GetFanCount(); Hw.SetFanLevels(l1, l2); }, what)) { curLevel1 = l1; curLevel2 = l2; fanWriteFailures = 0; fanFailureShown = false; return true; }
             fanWriteFailures++;
             if (fanWriteFailures >= FanWriteGiveUp) {
@@ -760,8 +763,8 @@ namespace Ohman {
             if (Emergency71Active || GuardActive) { MaxFan(true, "Guard max fan"); return; }      // the guard owns the fans until it releases
             switch (S.Fan) {
                 case FanMode.Max:
-                    int maxLvl = Math.Min(48, P.Curve.Ceiling);
-                    WriteLevels(maxLvl, maxLvl, "Max fan (4800 RPM cap)");
+                    int maxLvl = IsEme ? 57 : Math.Min(48, P.Curve.Ceiling);
+                    WriteLevels(maxLvl, maxLvl, IsEme ? "Max fan (EME 5700 RPM)" : "Max fan (4800 RPM cap)");
                     break;
                 case FanMode.Manual:
                     MaxFan(false, "Max fan off");
@@ -802,21 +805,34 @@ namespace Ohman {
             FanCurve curve = S.Fan == FanMode.Custom ? CustomCurve() : P.Curve;
             int[] target = curve.Target(smoothCpu, smoothGpu, IrTemp);
             
-            // Automatic zero-RPM below 45°C, restart at 50°C hysteresis (independent per CPU and GPU)
-            if (double.IsNaN(smoothCpu)) {
-                cpuZeroRpmActive = false; // sensor failed/unavailable: restore safe cooling floor
-            } else if (smoothCpu < 45.0) {
-                cpuZeroRpmActive = true;
-            } else if (smoothCpu >= 50.0) {
-                cpuZeroRpmActive = false;
-            }
+            // Automatic zero-RPM below 45°C (independent per CPU and GPU)
+            // In Quiet mode (0): fans stay off even if it hits 60°C, and only turn on at 70°C.
+            if (ModeIndex == 0) {
+                if (double.IsNaN(smoothCpu)) cpuZeroRpmActive = false;
+                else if (smoothCpu >= 70.0) cpuZeroRpmActive = false; // only turns on at 70°C
+                else if (smoothCpu < 70.0 && (cpuZeroRpmActive || smoothCpu < 45.0 || curLevel1 <= 0)) cpuZeroRpmActive = true; // stays off below 70°C
 
-            if (double.IsNaN(smoothGpu)) {
-                gpuZeroRpmActive = false; // sensor failed/unavailable: restore safe cooling floor
-            } else if (smoothGpu < 45.0) {
-                gpuZeroRpmActive = true;
-            } else if (smoothGpu >= 50.0) {
-                gpuZeroRpmActive = false;
+                if (double.IsNaN(smoothGpu)) gpuZeroRpmActive = false;
+                else if (smoothGpu >= 70.0) gpuZeroRpmActive = false; // only turns on at 70°C
+                else if (smoothGpu < 70.0 && (gpuZeroRpmActive || smoothGpu < 45.0 || curLevel2 <= 0)) gpuZeroRpmActive = true; // stays off below 70°C
+            } else {
+                // Normal modes (Balanced, Performance, EME):
+                // Turn off under 45°C, restart at 50°C hysteresis
+                if (double.IsNaN(smoothCpu)) {
+                    cpuZeroRpmActive = false;
+                } else if (smoothCpu < 45.0) {
+                    cpuZeroRpmActive = true;
+                } else if (smoothCpu >= 50.0) {
+                    cpuZeroRpmActive = false;
+                }
+
+                if (double.IsNaN(smoothGpu)) {
+                    gpuZeroRpmActive = false;
+                } else if (smoothGpu < 45.0) {
+                    gpuZeroRpmActive = true;
+                } else if (smoothGpu >= 50.0) {
+                    gpuZeroRpmActive = false;
+                }
             }
 
             if (cpuZeroRpmActive) target[0] = 0;
@@ -952,8 +968,9 @@ namespace Ohman {
             if (mode == FanMode.Max && S.Fan != FanMode.Max) { maxSince = DateTime.MinValue; fanBeforeMax = S.Fan; }   // saved with S below
             NoteFanMode(mode);
             S.Fan = mode;
-            S.Fan1 = P.Curve.ClampOrOff(f1);
-            S.Fan2 = P.Curve.ClampOrOff(f2);
+            int ceiling = IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
+            S.Fan1 = ClampLevel(f1, ceiling);
+            S.Fan2 = ClampLevel(f2, ceiling);
             S.Save();
             if ((Emergency71Active || GuardActive) && mode != FanMode.Max) { Say("Thermal guard is holding max fan; " + Choice.Fan[Choice.Of(mode)] + " resumes when cool"); Changed(); return; }
             lock (applySync) { ApplyFanCore(); lastFanWrite = DateTime.Now; }
@@ -1062,15 +1079,16 @@ namespace Ohman {
                 double t = CpuTemp;
                 bool cpuKnown = !double.IsNaN(t);
                 
-                bool emergency71 = cpuKnown && t >= 71.0;
+                double emergThresh = (S.ModeIndex == 0) ? 78.0 : 71.0;
+                bool emergency71 = cpuKnown && t >= emergThresh;
                 if (emergency71 && !Emergency71Active) {
                     Emergency71Active = true;
                     emergency71SafeSince = DateTime.MinValue;
-                    Log.Write("71C EMERGENCY GUARD engaged: cpu=" + t.ToString("0"));
-                    Fire(Toast, "Emergency 71°C: fans to max", true);
+                    Log.Write("EMERGENCY GUARD engaged: cpu=" + t.ToString("0") + "°C");
+                    Fire(Toast, "Emergency " + (int)emergThresh + "°C: fans to max", true);
                     if (S.ModeIndex == 0) {
-                        Log.Write("71C EMERGENCY: switching Eco -> Balanced");
-                        Fire(Toast, "Thermal event: Switching Eco to Balanced", true);
+                        Log.Write("Emergency: switching Quiet -> Balanced");
+                        Fire(Toast, "Thermal event: Switching Quiet to Balanced", true);
                         SetModeCore(1, false);
                     }
                     lock (applySync) MaxFan(true, "Emergency max fan");
