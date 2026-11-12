@@ -33,10 +33,12 @@ namespace Ohman {
         const double RailW = 62, PageW = 980, KbdPageW = 980, SettingsH = 720;
 
         Osd osd;
-        public void Flash(string title, string detail, int modeIndex) {
+        public void Flash(string title, string detail, int modeIndex, int durationMs = 1400) {
             if (osd == null) osd = new Osd();
-            string[] paths = { LEAF, SCALE, BOLT };
-            osd.Flash(title, detail, modeIndex >= 0 ? Ui.ModeColor(modeIndex) : Ui.Accent.Color, modeIndex >= 0 ? paths[modeIndex] : FAN);
+            string[] paths = { LEAF, SCALE, BOLT, BOLT };
+            string iconPath = (modeIndex >= 0 && modeIndex < paths.Length) ? paths[modeIndex] : FAN;
+            Color col = modeIndex == 4 ? Ui.ModeColor(3) : modeIndex >= 0 ? Ui.ModeColor(modeIndex) : Ui.Accent.Color;
+            osd.Flash(title, detail, col, iconPath, durationMs);
         }
         const string FAN = "M12 12 C9.6 8.4 8.4 5 10.3 2 C14.6 2.4 15.9 6.6 12 9 M12 12 C15.3 13.2 17.6 16.2 16.6 19.6 C12.5 20.6 9.4 17.6 12 15 M12 12 C11.1 15.4 8 17.8 4.6 16.4 C4 12.2 7.2 9.8 12 9";
         const string LEAF = "M4 20 C4 11 10 4 20 4 C20 13 14 20 4 20 Z M4 20 L13 11";
@@ -154,6 +156,12 @@ namespace Ohman {
         IntPtr hwnd;
         bool hotkeysRegistered;
         bool onBattery;                                    // last known power source; PollRate uses it
+        IntPtr llHook;
+        LowLevelKeyboardProc llProc;
+        bool winOHeld;
+        bool overlay5700Active;
+        FanMode fanBefore5700 = FanMode.Auto;
+        int fan1Before5700 = 30, fan2Before5700 = 30;
 
         static readonly string[] ModeSubs = {
             "Windows efficiency mode · GPU base power",
@@ -162,10 +170,25 @@ namespace Ohman {
             "Extreme Mode · Unrestricted battery fan control & max cooling"
         };
 
-        const int WM_HOTKEY = 0x0312;
-        const uint MOD_ALT = 1, MOD_CONTROL = 2, MOD_SHIFT = 4, VK_F11 = 0x7A;   // not F12: Windows reserves it for the debugger
+        const int WM_HOTKEY = 0x0312, WH_KEYBOARD_LL = 13, WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105;
+        const uint MOD_ALT = 1, MOD_CONTROL = 2, MOD_SHIFT = 4, MOD_WIN = 8, VK_F11 = 0x7A;   // not F12: Windows reserves it for the debugger
+        const int VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_MENU = 0x12, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
+        delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+        [StructLayout(LayoutKind.Sequential)]
+        struct KBDLLHOOKSTRUCT {
+            public uint vkCode;
+            public uint scanCode;
+            public uint flags;
+            public uint time;
+            public UIntPtr dwExtraInfo;
+        }
         [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint vk);
         [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
+        [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+        [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hhk);
+        [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vKey);
+        [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string lpModuleName);
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr wp, IntPtr lp);
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
@@ -2115,24 +2138,29 @@ namespace Ohman {
             ExitApp();
         }
 
+        bool EnsureEmeConfirmed() {
+            if (E.S.EmeConfirmed) return true;
+            var res = MessageBox.Show(
+                "Extreme Mode (EME) enables full manual fan control and maximum speeds while running on battery power.\n\n" +
+                "• High fan speeds on battery will increase power consumption and reduce battery runtime.\n" +
+                "• Fan noise will increase accordingly.\n" +
+                "• Hardware thermal safeguards remain active.\n\n" +
+                "Do you wish to enable Extreme Mode?",
+                "Enable Extreme Mode (EME)?",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (res != MessageBoxResult.Yes) return false;
+            E.S.EmeConfirmed = true;
+            E.S.Save();
+            return true;
+        }
+
         void ApplyModeAsync(int idx) {
-            if (idx == 3 && !E.S.EmeConfirmed) {
-                var res = MessageBox.Show(
-                    "Extreme Mode (EME) enables full manual fan control and maximum speeds while running on battery power.\n\n" +
-                    "• High fan speeds on battery will increase power consumption and reduce battery runtime.\n" +
-                    "• Fan noise will increase accordingly.\n" +
-                    "• Hardware thermal safeguards remain active.\n\n" +
-                    "Do you wish to enable Extreme Mode?",
-                    "Enable Extreme Mode (EME)?",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-                if (res != MessageBoxResult.Yes) {
-                    SelectMode(E.ModeIndex, false);
-                    return;
-                }
-                E.S.EmeConfirmed = true;
-                E.S.Save();
+            if (idx == 3 && !EnsureEmeConfirmed()) {
+                SelectMode(E.ModeIndex, false);
+                return;
             }
+            overlay5700Active = false;
             SelectMode(idx, true);
             Bg(delegate { E.SetMode(idx, false); });
         }
@@ -2292,10 +2320,53 @@ namespace Ohman {
                 case KeyAction.Run: RunKeyCommand(); break;
             }
         }
+        string TempSummary() {
+            string c = double.IsNaN(E.CpuTemp) ? "--" : ((int)Math.Round(E.CpuTemp)) + "\u00B0C";
+            string g = double.IsNaN(E.GpuTemp) ? "--" : ((int)Math.Round(E.GpuTemp)) + "\u00B0C";
+            return "CPU " + c + " \u00B7 GPU " + g;
+        }
+        bool Is5700OverlayStep() {
+            return overlay5700Active || (E.ModeIndex == 3 && ((E.S.Fan == FanMode.Manual && E.S.Fan1 >= 57 && (E.FanCount < 2 || E.S.Fan2 >= 57)) || E.S.Fan == FanMode.Max));
+        }
         void CycleWithFlash() {
             int next = (E.ModeIndex + 1) % 4;
+            if (next == 3 && !EnsureEmeConfirmed()) return;
             Flash(Engine.ModeNames[next] + " mode", ModeSubs[next], next);
-            ApplyModeAsync(next);
+            overlay5700Active = false;
+            SelectMode(next, true);
+            Bg(delegate { E.SetMode(next, false); });
+        }
+        void CycleOverlayWithFlash() {
+            int curStep = Is5700OverlayStep() ? 4 : E.ModeIndex;
+            int nextStep = (curStep + 1) % 5;
+            if (nextStep == 4) {
+                if (!EnsureEmeConfirmed()) return;
+                if (!overlay5700Active) {
+                    fanBefore5700 = (E.S.Fan == FanMode.Max || (E.S.Fan == FanMode.Manual && E.S.Fan1 >= 57)) ? FanMode.Auto : E.S.Fan;
+                    fan1Before5700 = E.S.Fan1 >= 57 ? 30 : E.S.Fan1;
+                    fan2Before5700 = E.S.Fan2 >= 57 ? 30 : E.S.Fan2;
+                }
+                overlay5700Active = true;
+                SelectMode(3, true);
+                Flash("5700 RPM Fans", TempSummary() + " \u00B7 EME cooling locked to 5,700 RPM", 4, 5000);
+                Bg(delegate {
+                    if (!E.IsEme) E.SetMode(3, false);
+                    E.SetFan(FanMode.Manual, 57, 57, false);
+                });
+                return;
+            }
+            if (nextStep == 3 && !EnsureEmeConfirmed()) return;
+            bool leaving5700 = (curStep == 4);
+            var rFan = leaving5700 ? (fanBefore5700 == FanMode.Max ? FanMode.Auto : fanBefore5700) : FanMode.Auto;
+            int r1 = leaving5700 ? fan1Before5700 : 30;
+            int r2 = leaving5700 ? fan2Before5700 : 30;
+            overlay5700Active = false;
+            SelectMode(nextStep, true);
+            Flash(Engine.ModeNames[nextStep] + " mode", TempSummary() + " \u00B7 " + ModeSubs[nextStep], nextStep, 5000);
+            Bg(delegate {
+                if (leaving5700) E.SetFan(rFan, r1, r2, false);
+                E.SetMode(nextStep, false);
+            });
         }
         void ToggleMaxWithFlash() {
             bool on = E.S.Fan != FanMode.Max;
@@ -2367,12 +2438,47 @@ namespace Ohman {
             RegisterHotKey(h, 5, MOD_CONTROL | MOD_ALT, (uint)'M');
             RegisterHotKey(h, 6, MOD_CONTROL | MOD_ALT, (uint)'O');
             if (!RegisterHotKey(h, 7, MOD_SHIFT, VK_F11)) Log.Write("hotkey Shift+F11 not available");   // next to the OMEN key: cycles modes
+            if (!RegisterHotKey(h, 8, MOD_WIN, (uint)'O')) {
+                Log.Write("hotkey Win+O RegisterHotKey unavailable; installing WH_KEYBOARD_LL fallback");
+                InstallWinOHook();
+            }
             hotkeysRegistered = true;
         }
+        void InstallWinOHook() {
+            if (llHook != IntPtr.Zero) return;
+            llProc = WinOKeyHook;
+            using (var curProc = Process.GetCurrentProcess())
+            using (var curMod = curProc.MainModule)
+                llHook = SetWindowsHookEx(WH_KEYBOARD_LL, llProc, curMod != null ? GetModuleHandle(curMod.ModuleName) : IntPtr.Zero, 0);
+            if (llHook == IntPtr.Zero) Log.Write("Win+O low-level keyboard hook failed");
+        }
+        IntPtr WinOKeyHook(int nCode, IntPtr wParam, IntPtr lParam) {
+            if (nCode >= 0 && E.S.Hotkeys) {
+                int msg = wParam.ToInt32();
+                var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+                if (info.vkCode == (uint)'O') {
+                    if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                        winOHeld = false;
+                    } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
+                        bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                        bool otherMods = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0 || (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                        if (winDown && !otherMods) {
+                            if (!winOHeld) {
+                                winOHeld = true;
+                                Dispatcher.BeginInvoke((Action)CycleOverlayWithFlash);
+                            }
+                            return (IntPtr)1;
+                        }
+                    }
+                }
+            }
+            return CallNextHookEx(llHook, nCode, wParam, lParam);
+        }
         void UnregisterHotkeys() {
+            if (llHook != IntPtr.Zero) { UnhookWindowsHookEx(llHook); llHook = IntPtr.Zero; llProc = null; winOHeld = false; }
             if (!hotkeysRegistered) return;
             var h = new WindowInteropHelper(this).Handle;
-            for (int i = 1; i <= 7; i++) UnregisterHotKey(h, i);
+            for (int i = 1; i <= 8; i++) UnregisterHotKey(h, i);
             hotkeysRegistered = false;
         }
         IntPtr Hook(IntPtr h, int msg, IntPtr wp, IntPtr lp, ref bool handled) {
@@ -2382,6 +2488,7 @@ namespace Ohman {
                 else if (id == 5) ToggleMaxWithFlash();
                 else if (id == 6) TogglePanel();
                 else if (id == 7) CycleWithFlash();
+                else if (id == 8) CycleOverlayWithFlash();
                 handled = true;
             }
             return IntPtr.Zero;

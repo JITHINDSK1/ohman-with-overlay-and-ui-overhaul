@@ -184,7 +184,7 @@ namespace Ohman {
 
         StackPanel BuildFanPanel() {
             int sMin = E.P.Curve.Floor;
-            int sMax = E.P.Curve.Ceiling;
+            int sMax = E.IsEme ? Math.Max(57, E.P.Curve.Ceiling) : E.P.Curve.Ceiling;
 
             var panel = new StackPanel { Orientation = Orientation.Vertical };
 
@@ -229,6 +229,7 @@ namespace Ohman {
             };
             btnRow.Children.Add(ActionBtn("Apply", OnApply));
             btnRow.Children.Add(ActionBtn("Auto",  OnAuto));
+            btnRow.Children.Add(ActionBtn("5700 RPM", On5700Rpm));
             panel.Children.Add(btnRow);
 
             return panel;
@@ -277,14 +278,39 @@ namespace Ohman {
             // Read slider values on the UI thread, then call engine from here (any thread is fine)
             int f1 = 0, f2 = 0;
             Dispatcher.Invoke(delegate {
-                f1 = E.P.Curve.ClampOrOff((int)sl1.Value);
-                f2 = (E.FanCount == 1) ? f1 : E.P.Curve.ClampOrOff((int)sl2.Value);
+                int maxLvl = E.IsEme ? Math.Max(57, E.P.Curve.Ceiling) : E.P.Curve.Ceiling;
+                int v1 = (int)sl1.Value, v2 = (int)sl2.Value;
+                f1 = E.IsEme ? (v1 <= 0 ? 0 : Math.Max(E.P.Curve.Floor, Math.Min(maxLvl, v1))) : E.P.Curve.ClampOrOff(v1);
+                f2 = (E.FanCount == 1) ? f1 : (E.IsEme ? (v2 <= 0 ? 0 : Math.Max(E.P.Curve.Floor, Math.Min(maxLvl, v2))) : E.P.Curve.ClampOrOff(v2));
             });
             E.SetFan(FanMode.Manual, f1, f2, false);
         }
 
         void OnAuto() {
             E.SetFan(FanMode.Auto, E.S.Fan1, E.S.Fan2, false);
+        }
+
+        void On5700Rpm() {
+            if (E.ReadOnly) { SetStatus("Read-only: board not recognised by Ohman", WarnBrush); return; }
+            if (!E.CanSetFanLevels) { SetStatus("Fan level writes refused by this firmware", WarnBrush); return; }
+            if (!E.S.EmeConfirmed) {
+                bool ok = false;
+                Dispatcher.Invoke(delegate {
+                    var res = MessageBox.Show(
+                        "Extreme Mode (EME) enables full manual fan control and maximum 5,700 RPM speeds, including on battery power.\n\n" +
+                        "• High fan speeds on battery will increase power consumption and reduce battery runtime.\n" +
+                        "• Fan noise will increase accordingly.\n" +
+                        "• Hardware thermal safeguards remain active.\n\n" +
+                        "Do you wish to enable 5700 RPM (EME) mode?",
+                        "Enable 5700 RPM Fans (EME)?",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+                    if (res == MessageBoxResult.Yes) { E.S.EmeConfirmed = true; E.S.Save(); ok = true; }
+                });
+                if (!ok) return;
+            }
+            if (!E.IsEme) E.SetMode(3, false);
+            E.SetFan(FanMode.Manual, 57, 57, false);
         }
 
         // ====================================================================
@@ -352,7 +378,7 @@ namespace Ohman {
             else if (E.ReadOnly)           { txt = "Read-only \u2014 board not recognised";       col = WarnBrush; }
             else if (!E.CanSetFanLevels)   { txt = "Firmware refuses fan-level writes";           col = WarnBrush; }
             else switch (E.S.Fan) {
-                case FanMode.Manual: txt = "Manual \u2014 levels held by engine"; col = AccentBrush; break;
+                case FanMode.Manual: txt = (E.IsEme && (E.S.Fan1 >= 57 || E.S.Fan2 >= 57)) ? "5700 RPM Fans (EME)" : "Manual \u2014 levels held by engine"; col = AccentBrush; break;
                 case FanMode.Max:    txt = "Max fan";                             col = WarnBrush;   break;
                 case FanMode.Custom: txt = "Custom curve";                        col = DimBrush;    break;
                 default:             txt = "Auto (firmware curve)";               col = DimBrush;    break;
@@ -370,7 +396,7 @@ namespace Ohman {
 
         void SeedSliders() {
             if (sl1 == null) return;
-            int floor = E.P.Curve.Floor, ceiling = E.P.Curve.Ceiling;
+            int floor = E.P.Curve.Floor, ceiling = E.IsEme ? Math.Max(57, E.P.Curve.Ceiling) : E.P.Curve.Ceiling;
             sl1.Minimum = floor; sl1.Maximum = ceiling;
             sl2.Minimum = floor; sl2.Maximum = ceiling;
             int f1 = Clamp(E.S.Fan1 > 0 ? E.S.Fan1 : floor, floor, ceiling);

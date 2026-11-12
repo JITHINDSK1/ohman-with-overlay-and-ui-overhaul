@@ -286,7 +286,7 @@ namespace Ohman {
                 SetWindowLong(h, -20, GetWindowLong(h, -20) | 0x08000000 | 0x00000080);
             };
         }
-        public void Flash(string title, string detail, Color c, string pathData) {
+        public void Flash(string title, string detail, Color c, string pathData, int durationMs = 1400) {
             txt.Text = title;
             sub.Text = detail;
             sub.Visibility = string.IsNullOrEmpty(detail) ? Visibility.Collapsed : Visibility.Visible;
@@ -299,6 +299,7 @@ namespace Ohman {
             Top = wa.Bottom - ActualHeight - 72;
             BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(120)));
             hide.Stop();
+            hide.Interval = TimeSpan.FromMilliseconds(durationMs > 0 ? durationMs : 1400);
             hide.Start();
         }
     }
