@@ -817,7 +817,7 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
                   <TextBlock Text="Hotkeys" Style="{StaticResource Row}"/>
-                  <TextBlock Text="Win+O cycles (+5s overlay) · Shift+F11 cycles · Ctrl+Alt+E/B/P/X modes · Ctrl+Alt+M max fan · Ctrl+Alt+O panel" Style="{StaticResource RowSub}" FontFamily="{DynamicResource MonoFont}" FontSize="11"/>
+                  <TextBlock Text="Win+O cycles modes (+5s overlay) · Fn+Q toggles 5700 RPM · Shift+F11 cycles · Ctrl+Alt+E/B/P/X modes · Ctrl+Alt+M max fan · Ctrl+Alt+O panel" Style="{StaticResource RowSub}" FontFamily="{DynamicResource MonoFont}" FontSize="11"/>
                 </StackPanel>
                 <ToggleButton x:Name="TgHotkeys" Grid.Column="1" Style="{StaticResource Switch}"/>
               </Grid>

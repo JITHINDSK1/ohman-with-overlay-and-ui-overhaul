@@ -158,8 +158,9 @@ namespace Ohman {
         bool onBattery;                                    // last known power source; PollRate uses it
         IntPtr llHook;
         LowLevelKeyboardProc llProc;
-        bool winOHeld;
-        bool overlay5700Active;
+        bool winOHeld, fnQHeld;
+        bool is5700Active;
+        int modeBefore5700 = 1;
         FanMode fanBefore5700 = FanMode.Auto;
         int fan1Before5700 = 30, fan2Before5700 = 30;
 
@@ -2160,7 +2161,7 @@ namespace Ohman {
                 SelectMode(E.ModeIndex, false);
                 return;
             }
-            overlay5700Active = false;
+            is5700Active = false;
             SelectMode(idx, true);
             Bg(delegate { E.SetMode(idx, false); });
         }
@@ -2325,48 +2326,58 @@ namespace Ohman {
             string g = double.IsNaN(E.GpuTemp) ? "--" : ((int)Math.Round(E.GpuTemp)) + "\u00B0C";
             return "CPU " + c + " \u00B7 GPU " + g;
         }
-        bool Is5700OverlayStep() {
-            return overlay5700Active || (E.ModeIndex == 3 && ((E.S.Fan == FanMode.Manual && E.S.Fan1 >= 57 && (E.FanCount < 2 || E.S.Fan2 >= 57)) || E.S.Fan == FanMode.Max));
-        }
         void CycleWithFlash() {
             int next = (E.ModeIndex + 1) % 4;
             if (next == 3 && !EnsureEmeConfirmed()) return;
             Flash(Engine.ModeNames[next] + " mode", ModeSubs[next], next);
-            overlay5700Active = false;
+            is5700Active = false;
             SelectMode(next, true);
             Bg(delegate { E.SetMode(next, false); });
         }
         void CycleOverlayWithFlash() {
-            int curStep = Is5700OverlayStep() ? 4 : E.ModeIndex;
-            int nextStep = (curStep + 1) % 5;
-            if (nextStep == 4) {
+            // Win + O cycles strictly between the 4 operating modes (Quiet, Balanced, Performance, EME)
+            int next = (E.ModeIndex + 1) % 4;
+            if (next == 3 && !EnsureEmeConfirmed()) return;
+            is5700Active = false;
+            modeBefore5700 = next;
+            SelectMode(next, true);
+            Flash(Engine.ModeNames[next] + " mode", TempSummary() + " \u00B7 " + ModeSubs[next], next, 5000);
+            Bg(delegate {
+                E.SetMode(next, false);
+            });
+        }
+        void Toggle5700WithFlash() {
+            bool currentIs5700 = is5700Active || (E.IsEme && (E.S.Fan == FanMode.Max || (E.S.Fan == FanMode.Manual && E.S.Fan1 >= 57 && (E.FanCount < 2 || E.S.Fan2 >= 57))));
+            if (!currentIs5700) {
+                // Turn ON 5700 RPM mode
                 if (!EnsureEmeConfirmed()) return;
-                if (!overlay5700Active) {
-                    fanBefore5700 = (E.S.Fan == FanMode.Max || (E.S.Fan == FanMode.Manual && E.S.Fan1 >= 57)) ? FanMode.Auto : E.S.Fan;
-                    fan1Before5700 = E.S.Fan1 >= 57 ? 30 : E.S.Fan1;
-                    fan2Before5700 = E.S.Fan2 >= 57 ? 30 : E.S.Fan2;
-                }
-                overlay5700Active = true;
+                modeBefore5700 = E.ModeIndex;
+                fanBefore5700 = (E.S.Fan == FanMode.Max || (E.S.Fan == FanMode.Manual && E.S.Fan1 >= 57)) ? FanMode.Auto : E.S.Fan;
+                fan1Before5700 = E.S.Fan1 >= 57 ? 30 : E.S.Fan1;
+                fan2Before5700 = E.S.Fan2 >= 57 ? 30 : E.S.Fan2;
+
+                is5700Active = true;
                 SelectMode(3, true);
                 Flash("5700 RPM Fans", TempSummary() + " \u00B7 EME cooling locked to 5,700 RPM", 4, 5000);
                 Bg(delegate {
                     if (!E.IsEme) E.SetMode(3, false);
                     E.SetFan(FanMode.Manual, 57, 57, false);
                 });
-                return;
+            } else {
+                // Revert back to the mode from Win + O
+                is5700Active = false;
+                int targetMode = Math.Max(0, Math.Min(3, modeBefore5700));
+                var rFan = fanBefore5700 == FanMode.Max ? FanMode.Auto : fanBefore5700;
+                int r1 = fan1Before5700;
+                int r2 = fan2Before5700;
+
+                SelectMode(targetMode, true);
+                Flash(Engine.ModeNames[targetMode] + " mode", TempSummary() + " \u00B7 " + ModeSubs[targetMode], targetMode, 5000);
+                Bg(delegate {
+                    E.SetFan(rFan, r1, r2, false);
+                    E.SetMode(targetMode, false);
+                });
             }
-            if (nextStep == 3 && !EnsureEmeConfirmed()) return;
-            bool leaving5700 = (curStep == 4);
-            var rFan = leaving5700 ? (fanBefore5700 == FanMode.Max ? FanMode.Auto : fanBefore5700) : FanMode.Auto;
-            int r1 = leaving5700 ? fan1Before5700 : 30;
-            int r2 = leaving5700 ? fan2Before5700 : 30;
-            overlay5700Active = false;
-            SelectMode(nextStep, true);
-            Flash(Engine.ModeNames[nextStep] + " mode", TempSummary() + " \u00B7 " + ModeSubs[nextStep], nextStep, 5000);
-            Bg(delegate {
-                if (leaving5700) E.SetFan(rFan, r1, r2, false);
-                E.SetMode(nextStep, false);
-            });
         }
         void ToggleMaxWithFlash() {
             bool on = E.S.Fan != FanMode.Max;
@@ -2438,25 +2449,27 @@ namespace Ohman {
             RegisterHotKey(h, 5, MOD_CONTROL | MOD_ALT, (uint)'M');
             RegisterHotKey(h, 6, MOD_CONTROL | MOD_ALT, (uint)'O');
             if (!RegisterHotKey(h, 7, MOD_SHIFT, VK_F11)) Log.Write("hotkey Shift+F11 not available");   // next to the OMEN key: cycles modes
-            if (!RegisterHotKey(h, 8, MOD_WIN, (uint)'O')) {
-                Log.Write("hotkey Win+O RegisterHotKey unavailable; installing WH_KEYBOARD_LL fallback");
-                InstallWinOHook();
-            }
+            if (!RegisterHotKey(h, 8, MOD_WIN, (uint)'O')) Log.Write("hotkey Win+O RegisterHotKey unavailable");
+            RegisterHotKey(h, 9, MOD_ALT, (uint)'Q'); // Fn+Q / Alt+Q toggle 5700 RPM fans mode
+            // Always install low-level hook to catch Fn+Q / OEM performance key and provide Win+O fallback
+            InstallKeyboardHook();
             hotkeysRegistered = true;
         }
-        void InstallWinOHook() {
+        void InstallKeyboardHook() {
             if (llHook != IntPtr.Zero) return;
-            llProc = WinOKeyHook;
+            llProc = GlobalKeyHook;
             using (var curProc = Process.GetCurrentProcess())
             using (var curMod = curProc.MainModule)
                 llHook = SetWindowsHookEx(WH_KEYBOARD_LL, llProc, curMod != null ? GetModuleHandle(curMod.ModuleName) : IntPtr.Zero, 0);
-            if (llHook == IntPtr.Zero) Log.Write("Win+O low-level keyboard hook failed");
+            if (llHook == IntPtr.Zero) Log.Write("Global low-level keyboard hook failed");
         }
-        IntPtr WinOKeyHook(int nCode, IntPtr wParam, IntPtr lParam) {
+        IntPtr GlobalKeyHook(int nCode, IntPtr wParam, IntPtr lParam) {
             if (nCode >= 0 && E.S.Hotkeys) {
                 int msg = wParam.ToInt32();
                 var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
-                if (info.vkCode == (uint)'O') {
+                uint vk = info.vkCode;
+
+                if (vk == (uint)'O') {
                     if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
                         winOHeld = false;
                     } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
@@ -2470,15 +2483,38 @@ namespace Ohman {
                             return (IntPtr)1;
                         }
                     }
+                } else if (vk == (uint)'Q') {
+                    if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                        fnQHeld = false;
+                    } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
+                        // On laptops, Fn is typically filtered by EC/firmware.
+                        // When Fn is combined with Q, depending on the keyboard firmware/driver,
+                        // it can either emit a custom scan code or Alt+Q / Ctrl+Q / bare Q or be emitted if user has Fn lock on.
+                        // We support Alt+Q or Ctrl+Q or bare Q when Fn-mode emulation is used, but specifically:
+                        // If Alt+Q or Win+Q is pressed, or if Fn+Q sends a Q event without standard text modifiers:
+                        bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                        bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                        bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                        bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                        // Fn+Q often surfaces as Alt+Q or unmodified Q with special extra flags in Windows,
+                        // or user presses Alt+Q / Fn+Q shortcut.
+                        if (altDown && !ctrlDown && !winDown && !shiftDown) {
+                            if (!fnQHeld) {
+                                fnQHeld = true;
+                                Dispatcher.BeginInvoke((Action)Toggle5700WithFlash);
+                            }
+                            return (IntPtr)1;
+                        }
+                    }
                 }
             }
             return CallNextHookEx(llHook, nCode, wParam, lParam);
         }
         void UnregisterHotkeys() {
-            if (llHook != IntPtr.Zero) { UnhookWindowsHookEx(llHook); llHook = IntPtr.Zero; llProc = null; winOHeld = false; }
+            if (llHook != IntPtr.Zero) { UnhookWindowsHookEx(llHook); llHook = IntPtr.Zero; llProc = null; winOHeld = false; fnQHeld = false; }
             if (!hotkeysRegistered) return;
             var h = new WindowInteropHelper(this).Handle;
-            for (int i = 1; i <= 8; i++) UnregisterHotKey(h, i);
+            for (int i = 1; i <= 9; i++) UnregisterHotKey(h, i);
             hotkeysRegistered = false;
         }
         IntPtr Hook(IntPtr h, int msg, IntPtr wp, IntPtr lp, ref bool handled) {
@@ -2489,6 +2525,7 @@ namespace Ohman {
                 else if (id == 6) TogglePanel();
                 else if (id == 7) CycleWithFlash();
                 else if (id == 8) CycleOverlayWithFlash();
+                else if (id == 9) Toggle5700WithFlash();
                 handled = true;
             }
             return IntPtr.Zero;
