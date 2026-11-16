@@ -658,6 +658,7 @@ namespace Ohman {
             stopping = true; try { workReady.Set(); } catch { }
             try { if (fx != null) fx.Dispose(); } catch { }
             try { if (fanTimer != null) fanTimer.Dispose(); } catch { }
+            try { if (stepDownTimer != null) stepDownTimer.Dispose(); } catch { }
             try { if (heartbeat != null) heartbeat.Dispose(); } catch { }
             try { if (guard != null) guard.Dispose(); } catch { }
             try { if (watcher != null) { watcher.Stop(); watcher.Dispose(); } } catch { }
@@ -732,6 +733,53 @@ namespace Ohman {
             return Math.Max(P.Curve.Floor, Math.Min(ceiling, level));
         }
 
+        System.Threading.Timer stepDownTimer;
+        int targetFan1 = -1, targetFan2 = -1;
+
+        void StartStepDownTimer() {
+            if (stepDownTimer == null)
+                stepDownTimer = new System.Threading.Timer(delegate { StepDownTick(); }, null, 1500, Timeout.Infinite);
+            else
+                try { stepDownTimer.Change(1500, Timeout.Infinite); } catch { }
+        }
+
+        void StopStepDown() {
+            if (stepDownTimer != null)
+                try { stepDownTimer.Change(Timeout.Infinite, Timeout.Infinite); } catch { }
+        }
+
+        static int NextStepDown(int cur, int target) {
+            if (target >= cur) return target;
+            if (cur > 48) return Math.Max(target, 48);
+            if (cur > 33) return Math.Max(target, 33);
+            if (cur > 23) return Math.Max(target, 23);
+            if (cur > 18) return Math.Max(target, 18);
+            return target;
+        }
+
+        void StepDownTick() {
+            lock (applySync) {
+                if (Emergency71Active || GuardActive) {
+                    StopStepDown();
+                    return;
+                }
+                if (curLevel1 > targetFan1 || curLevel2 > targetFan2) {
+                    int next1 = NextStepDown(curLevel1, targetFan1);
+                    int next2 = NextStepDown(curLevel2, targetFan2);
+                    Log.Write("fan step-down: " + curLevel1 + "/" + curLevel2 + " -> " + next1 + "/" + next2 + " (target " + targetFan1 + "/" + targetFan2 + ")");
+                    WriteLevelsRaw(next1, next2, "Fan step-down (" + Rpm(next1) + "/" + Rpm(next2) + ")");
+                    Changed();
+                    if (curLevel1 > targetFan1 || curLevel2 > targetFan2) {
+                        StartStepDownTimer();
+                    } else {
+                        StopStepDown();
+                    }
+                } else {
+                    StopStepDown();
+                }
+            }
+        }
+
         bool WriteLevels(int l1, int l2, string what) {
             if (fanLevelsRefused) return false;
             if (OnBattery && !IsEme && S.Fan == FanMode.Manual && (l1 > 0 || l2 > 0)) {
@@ -741,7 +789,60 @@ namespace Ohman {
             int ceiling = IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
             l1 = ClampLevel(l1, ceiling);
             l2 = ClampLevel(l2, ceiling);
-            if (Try(delegate { Hw.GetFanCount(); Hw.SetFanLevels(l1, l2); }, what)) { curLevel1 = l1; curLevel2 = l2; fanWriteFailures = 0; fanFailureShown = false; return true; }
+
+            // Initial write (before any level has been written) or uninitialized
+            if (curLevel1 < 0 || curLevel2 < 0) {
+                targetFan1 = l1; targetFan2 = l2;
+                StopStepDown();
+                return WriteLevelsRaw(l1, l2, what);
+            }
+
+            // Both fans maintaining or increasing speed: write immediately without step-down delay
+            if (l1 >= curLevel1 && l2 >= curLevel2) {
+                targetFan1 = l1; targetFan2 = l2;
+                StopStepDown();
+                return WriteLevelsRaw(l1, l2, what);
+            }
+
+            // If a step-down towards this exact target is already underway, let the timer sequence proceed
+            if (l1 == targetFan1 && l2 == targetFan2 && (curLevel1 > targetFan1 || curLevel2 > targetFan2)) {
+                return true;
+            }
+
+            // At least one fan is decreasing: step down sequentially (e.g. 5700 -> 4800 -> 3300 -> 2300 -> 1800 -> 0)
+            targetFan1 = l1;
+            targetFan2 = l2;
+
+            int next1 = NextStepDown(curLevel1, targetFan1);
+            int next2 = NextStepDown(curLevel2, targetFan2);
+
+            Log.Write("fan step-down start: " + curLevel1 + "/" + curLevel2 + " -> " + next1 + "/" + next2 + " (target " + targetFan1 + "/" + targetFan2 + ")");
+            bool ok = WriteLevelsRaw(next1, next2, what + " step (" + Rpm(next1) + "/" + Rpm(next2) + ")");
+            Changed();
+
+            if (curLevel1 > targetFan1 || curLevel2 > targetFan2) {
+                StartStepDownTimer();
+            } else {
+                StopStepDown();
+            }
+            return ok;
+        }
+
+        bool WriteLevelsRaw(int l1, int l2, string what) {
+            if (fanLevelsRefused) return false;
+            if (OnBattery && !IsEme && S.Fan == FanMode.Manual && (l1 > 0 || l2 > 0)) {
+                Log.Write("skipped manual fan write on battery: EME mode required for battery fan control");
+                return false;
+            }
+            int ceiling = IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
+            l1 = ClampLevel(l1, ceiling);
+            l2 = ClampLevel(l2, ceiling);
+            if (Try(delegate { Hw.GetFanCount(); Hw.SetFanLevels(l1, l2); }, what)) {
+                curLevel1 = l1; curLevel2 = l2;
+                fanWriteFailures = 0; fanFailureShown = false;
+                lastFanWrite = DateTime.Now;
+                return true;
+            }
             fanWriteFailures++;
             if (fanWriteFailures >= FanWriteGiveUp) {
                 fanLevelsRefused = true;
@@ -1085,6 +1186,7 @@ namespace Ohman {
                 if (emergency71 && !Emergency71Active) {
                     Emergency71Active = true;
                     emergency71SafeSince = DateTime.MinValue;
+                    StopStepDown();
                     Log.Write("EMERGENCY GUARD engaged: cpu=" + t.ToString("0") + "°C");
                     Fire(Toast, "Emergency " + (int)emergThresh + "°C: fans to max", true);
                     if (S.ModeIndex == 0) {
@@ -1105,7 +1207,7 @@ namespace Ohman {
                             Log.Write("71C emergency guard released");
                             Fire(Toast, "71C emergency guard released", false);
                             if (!GuardActive) {
-                                curLevel1 = curLevel2 = -1;
+                                curLevel1 = curLevel2 = IsEme ? 57 : Math.Min(48, P.Curve.Ceiling);
                                 lock (applySync) { ApplyFanCore(); lastFanWrite = DateTime.Now; }
                             }
                             Changed();
@@ -1122,6 +1224,7 @@ namespace Ohman {
                 if ((hot || stalled) && !GuardActive) {
                     GuardActive = true;
                     guardSafeSince = DateTime.MinValue;
+                    StopStepDown();
                     Log.Write("THERMAL GUARD engaged: cpu=" + (cpuKnown ? t.ToString("0") : "?") + " chassis=" + c + " fans=" + f[0] + "/" + f[1] + (stalled ? " (stalled)" : ""));
                     Fire(Toast, "Thermal guard: fans to max (CPU " + (cpuKnown ? t.ToString("0") + "°" : "?") + ", chassis " + c + "°)", true);
                     lock (applySync) MaxFan(true, "Guard max fan");
@@ -1134,7 +1237,7 @@ namespace Ohman {
                         GuardActive = false;
                         Log.Write("thermal guard released; fan mode back to " + S.Fan);
                         Fire(Toast, "Thermal guard released", false);
-                        curLevel1 = curLevel2 = -1;         // unknown after max fan; the curve starts again from its floor
+                        curLevel1 = curLevel2 = IsEme ? 57 : Math.Min(48, P.Curve.Ceiling);         // were at max fan; step down gracefully if cooling allows
                         lock (applySync) { ApplyFanCore(); lastFanWrite = DateTime.Now; }   // the current mode's own fan setting, nothing saved
                         Changed();
                     }
