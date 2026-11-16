@@ -609,6 +609,32 @@
           </StackPanel>
         </Grid>
 
+        <!-- 6200 RPM: dedicated overdrive tab view -->
+        <Grid x:Name="Turbo6200Block" Margin="0,24,0,0" Visibility="Collapsed">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <StackPanel Margin="0,0,0,18">
+            <TextBlock Style="{StaticResource Big}"><Run x:Name="Turbo6200Fan1" Text="6200"/><Run Text=" rpm" FontSize="15" FontWeight="Normal" Foreground="#96918D"/></TextBlock>
+            <TextBlock x:Name="Turbo6200Fan1Sub" Style="{StaticResource Cap}" Text="CPU fan · 6,200 RPM target (129%)" Margin="0,6,0,0"/>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Margin="20,0,0,18">
+            <TextBlock Style="{StaticResource Big}"><Run x:Name="Turbo6200Fan2" Text="6200"/><Run Text=" rpm" FontSize="15" FontWeight="Normal" Foreground="#96918D"/></TextBlock>
+            <TextBlock x:Name="Turbo6200Fan2Sub" Style="{StaticResource Cap}" Text="GPU fan · 6,200 RPM target (129%)" Margin="0,6,0,0"/>
+          </StackPanel>
+          <Border Grid.Row="1" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,18,0,0">
+            <StackPanel>
+              <TextBlock Style="{StaticResource Big}"><Run x:Name="Turbo6200CpuTemp" Text="--"/><Run Text="°C" FontSize="18" FontWeight="Normal" Foreground="#96918D"/></TextBlock>
+              <TextBlock x:Name="Turbo6200CpuSub" Style="{StaticResource Cap}" Text="CPU Temperature" Margin="0,6,0,0"/>
+            </StackPanel>
+          </Border>
+          <Border Grid.Row="1" Grid.Column="1" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="20,18,0,0">
+            <StackPanel>
+              <TextBlock Style="{StaticResource Big}"><Run x:Name="Turbo6200GpuTemp" Text="--"/><Run Text="°C" FontSize="18" FontWeight="Normal" Foreground="#96918D"/></TextBlock>
+              <TextBlock x:Name="Turbo6200GpuSub" Style="{StaticResource Cap}" Text="GPU Temperature" Margin="0,6,0,0"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+
         <!-- per-mode controls -->
         <Grid x:Name="OptsAuto" Margin="0,24,0,0" Visibility="Collapsed">
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -683,6 +709,25 @@
             <Ellipse Width="6" Height="6" Fill="#3F8CFF" VerticalAlignment="Center" Margin="0,0,9,0"/>
             <TextBlock x:Name="TxtTableMaxNote" Style="{StaticResource Cap}" Foreground="{StaticResource Hex}" TextWrapping="Wrap"/>
           </StackPanel>
+        </StackPanel>
+
+        <!-- 6200 RPM Overdrive controls & banner -->
+        <StackPanel x:Name="OptsTurbo6200" Margin="0,24,0,0" Visibility="Collapsed">
+          <Border Background="{StaticResource Sunken}" CornerRadius="10" Padding="18,14" BorderBrush="#40FF1E27" BorderThickness="1">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="⚡" FontSize="14" Foreground="#FF1E27" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                  <TextBlock Text="6,200 RPM OVERDRIVE MODE (IN-APP)" Style="{StaticResource Row}" Foreground="#FF454D" FontWeight="Bold"/>
+                </StackPanel>
+                <TextBlock Text="Hardware fan velocity forced to 6,200 RPM (129.2% of factory 4,800 RPM scale). High thermal dissipation. Managed exclusively within the application." Style="{StaticResource RowSub}" Margin="0,4,0,0"/>
+              </StackPanel>
+              <Border x:Name="BtnDisengage6200" Grid.Column="1" Background="{StaticResource Raised}" CornerRadius="6" Padding="14,8" Cursor="Hand" VerticalAlignment="Center">
+                <TextBlock Text="Return to Auto" Style="{StaticResource Row}" FontSize="12" FontWeight="SemiBold"/>
+              </Border>
+            </Grid>
+          </Border>
         </StackPanel>
 
         <Border Margin="0,24,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,14,0,0">

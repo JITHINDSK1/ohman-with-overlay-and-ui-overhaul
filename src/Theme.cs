@@ -147,8 +147,8 @@ namespace Ohman {
     /// <summary>The order of every multiple-choice control, once. The page segment, the tray submenu and the code
     /// that ticks them all index the same arrays, so reordering a choice cannot leave one of them pointing elsewhere.</summary>
     static class Choice {
-        public static readonly string[] Fan = { "Auto", "Max", "Curve", "Manual" };
-        public static readonly FanMode[] FanModes = { FanMode.Auto, FanMode.Max, FanMode.Custom, FanMode.Manual };
+        public static readonly string[] Fan = { "Auto", "Max", "Curve", "Manual", "6200 RPM" };
+        public static readonly FanMode[] FanModes = { FanMode.Auto, FanMode.Max, FanMode.Custom, FanMode.Manual, FanMode.Turbo6200 };
         public static int Of(FanMode m) { for (int i = 0; i < FanModes.Length; i++) if (FanModes[i] == m) return i; return 0; }
 
         public static readonly string[] Key = { "Cycle", "Panel", "Max fan", "Run", "Off" };

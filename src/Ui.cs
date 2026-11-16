@@ -101,7 +101,10 @@ namespace Ohman {
         TextBlock txtFansStatus, txtCurveTitle, txtCurveHint, txtFan1, txtFan2, txtFanApplied, txtFanRight, btnFanAction, txtFloor, txtRamp, txtGuardNote;
         TextBlock maxFan1Sub, maxFan2Sub, maxTempSub, maxMinsSub, manSub1, manSub2;
         Run maxFan1, maxFan2, maxTemp, maxMins, maxMinsUnit, manPct1, manPct2;
-        FrameworkElement curveBlock, maxBlock, manualBlock, optsAuto, optsCurve, optsMax, optsManual;
+        TextBlock turbo6200Fan1Sub, turbo6200Fan2Sub, turbo6200CpuSub, turbo6200GpuSub;
+        Run turbo6200Fan1, turbo6200Fan2, turbo6200CpuTemp, turbo6200GpuTemp;
+        FrameworkElement curveBlock, maxBlock, manualBlock, optsAuto, optsCurve, optsMax, optsManual, turbo6200Block, optsTurbo6200;
+        Border btnDisengage6200;
         Border curveWhichHost;
         LinkSeg curveWhich;
         CurveView curveView;
@@ -271,7 +274,10 @@ namespace Ohman {
                 ReadHardwareAsync();
                 if (IsVisible) {
                     UpdateFooter();
-                    if (cur == Page.Fans && E.S.Fan == FanMode.Max) UpdateMaxBlock();
+                    if (cur == Page.Fans) {
+                        if (E.S.Fan == FanMode.Max) UpdateMaxBlock();
+                        if (E.S.Fan == FanMode.Turbo6200) UpdateTurbo6200Block();
+                    }
                 }
             };
             PollRate();
@@ -398,6 +404,17 @@ namespace Ohman {
             manSub1 = F<TextBlock>("ManSub1");
             manPct2 = F<Run>("ManPct2");
             manSub2 = F<TextBlock>("ManSub2");
+            turbo6200Block = F<FrameworkElement>("Turbo6200Block");
+            optsTurbo6200 = F<FrameworkElement>("OptsTurbo6200");
+            turbo6200Fan1 = F<Run>("Turbo6200Fan1");
+            turbo6200Fan2 = F<Run>("Turbo6200Fan2");
+            turbo6200CpuTemp = F<Run>("Turbo6200CpuTemp");
+            turbo6200GpuTemp = F<Run>("Turbo6200GpuTemp");
+            turbo6200Fan1Sub = F<TextBlock>("Turbo6200Fan1Sub");
+            turbo6200Fan2Sub = F<TextBlock>("Turbo6200Fan2Sub");
+            turbo6200CpuSub = F<TextBlock>("Turbo6200CpuSub");
+            turbo6200GpuSub = F<TextBlock>("Turbo6200GpuSub");
+            btnDisengage6200 = F<Border>("BtnDisengage6200");
             optsAuto = F<FrameworkElement>("OptsAuto");
             tgEcoCool2 = F<ToggleButton>("TgEcoCool2");
             optsCurve = F<FrameworkElement>("OptsCurve");
@@ -505,11 +522,13 @@ namespace Ohman {
         }
 
         void UpdateFanSliderLimits() {
-            int maxLevel = (E.IsEme || E.Supports5700Rpm) ? 57 : E.HardwareFanTableMax;
+            int maxLevel = (E.S.Fan == FanMode.Turbo6200) ? 62 : (E.IsEme || E.Supports5700Rpm) ? 57 : E.HardwareFanTableMax;
             if (slFan1 != null) slFan1.Maximum = maxLevel;
             if (slFan2 != null) slFan2.Maximum = maxLevel;
             if (txtTableMaxNote != null) {
-                if (E.IsEme) {
+                if (E.S.Fan == FanMode.Turbo6200) {
+                    txtTableMaxNote.Text = "⚡ 6,200 RPM Overdrive: Fan ceiling unlocked to 6,200 RPM (129.2%).";
+                } else if (E.IsEme) {
                     txtTableMaxNote.Text = "⚡ EME Extreme Mode: Fan ceiling unlocked up to 5,700 RPM (118.75%).";
                 } else if (E.Supports5700Rpm) {
                     txtTableMaxNote.Text = "Hardware validated: fan speeds supported up to 5,700 RPM (118.75%).";
@@ -625,15 +644,24 @@ namespace Ohman {
         }
 
         void BuildFans() {
-            fanSeg = new Seg(Choice.Fan, new[] { "This model's own curve", "Both fans at full speed", "Your own curve, remembered per mode", "Fixed levels, held" }, null, Seg.Kind.Page);
+            fanSeg = new Seg(Choice.Fan, new[] { "This model's own curve", "Both fans at full speed", "Your own curve, remembered per mode", "Fixed levels, held", "Direct 6,200 RPM hardware overdrive" }, null, Seg.Kind.Page);
             F<Border>("FanSegHost").Child = fanSeg;
             fanSeg.Picked += delegate(int i) {
                 FanMode m = Choice.FanModes[i];
                 int f1 = (int)slFan1.Value, f2 = (int)slFan2.Value;
+                if (m == FanMode.Turbo6200) { f1 = 62; f2 = 62; }
                 Bg(delegate { E.SetFan(m, f1, f2, false); });
                 E.S.Fan = m;
                 RefreshFans(true);            // the page follows at once; the engine's own Changed arrives after the write
             };
+            if (btnDisengage6200 != null) {
+                btnDisengage6200.MouseLeftButtonDown += delegate(object s, MouseButtonEventArgs e) {
+                    e.Handled = true;
+                    Bg(delegate { E.SetFan(FanMode.Auto, E.S.Fan1, E.S.Fan2, false); });
+                    E.S.Fan = FanMode.Auto;
+                    RefreshFans(true);
+                };
+            }
             curveWhich = new LinkSeg(new[] { "CPU", "GPU" }, 12, 13, 3, null); curveWhichHost.Child = curveWhich;
             curveWhich.Picked += delegate(int i) { curveGpu = i == 1; RefreshFans(true); };
             curveView = new CurveView { Floor = E.P.Curve.Floor, Ceiling = E.P.Curve.Ceiling, Temps = Engine.CurveTemps, Levels = (int[])E.S.Cur.CurveLevels.Clone() };
@@ -685,8 +713,8 @@ namespace Ohman {
             };
             slFan1.ValueChanged += fanSlid;
             slFan2.ValueChanged += fanSlid;
-            var presetNames = new[] { "Fan Stop", "Low", "Medium", "High", "Maximum" };
-            var presetLvls = new object[] { 0, 1, 18, 23, 48 };
+            var presetNames = new[] { "Fan Stop", "Low", "Medium", "High", "Maximum", "6200 RPM" };
+            var presetLvls = new object[] { 0, 1, 18, 23, 48, 62 };
             fanPresetsSeg = new Seg(presetNames, null, presetLvls, Seg.Kind.Compact);
             F<Border>("FanPresetsHost").Child = fanPresetsSeg;
             fanPresetsSeg.Picked += delegate(int i) {
@@ -696,6 +724,10 @@ namespace Ohman {
                 }
                 int lvl = (int)fanPresetsSeg.Tags[i];
                 if (i == 4 && E.IsEme) lvl = 57;
+                if (lvl == 62) {
+                    if (slFan1 != null) slFan1.Maximum = 62;
+                    if (slFan2 != null) slFan2.Maximum = 62;
+                }
                 if (lvl == 0 && !double.IsNaN(E.CpuTemp) && E.CpuTemp > 65) {
                     ShowToast("CPU is " + (int)E.CpuTemp + "°C - Fan stop not recommended while warm", true);
                 }
@@ -1026,6 +1058,7 @@ namespace Ohman {
             // Fan
             var fanMenu = new WF.ToolStripMenuItem("Fan");
             for (int i = 0; i < Choice.Fan.Length; i++) {
+                if (Choice.FanModes[i] == FanMode.Turbo6200) continue; // Keep 6200 RPM mode strictly in-app
                 FanMode m = Choice.FanModes[i];
                 var it = Item(Choice.Fan[i], delegate { Bg(delegate { E.SetFan(m, E.S.Fan1, E.S.Fan2, false); }); });
                 trayFan.Add(it);
@@ -1551,10 +1584,12 @@ namespace Ohman {
                 curveBlock.Visibility = f == FanMode.Auto || f == FanMode.Custom ? Visibility.Visible : Visibility.Collapsed;
                 maxBlock.Visibility = f == FanMode.Max ? Visibility.Visible : Visibility.Collapsed;
                 manualBlock.Visibility = f == FanMode.Manual ? Visibility.Visible : Visibility.Collapsed;
+                turbo6200Block.Visibility = f == FanMode.Turbo6200 ? Visibility.Visible : Visibility.Collapsed;
                 optsAuto.Visibility = f == FanMode.Auto ? Visibility.Visible : Visibility.Collapsed;
                 optsCurve.Visibility = f == FanMode.Custom ? Visibility.Visible : Visibility.Collapsed;
                 optsMax.Visibility = f == FanMode.Max ? Visibility.Visible : Visibility.Collapsed;
                 optsManual.Visibility = f == FanMode.Manual ? Visibility.Visible : Visibility.Collapsed;
+                optsTurbo6200.Visibility = f == FanMode.Turbo6200 ? Visibility.Visible : Visibility.Collapsed;
                 tgEcoCool2.IsChecked = S.EcoCool;
                 tgMaxCool.IsChecked = S.MaxBackWhenCool;
                 tgManualLink.IsChecked = S.ManualLinked;
@@ -1608,10 +1643,23 @@ namespace Ohman {
                 UpdateFanSliderLimits();
                 UpdateCurveLive();
                 UpdateMaxBlock();
+                UpdateTurbo6200Block();
                 UpdateFanStatus();
                 UpdateFanFooter();
             } finally { syncing = was; }
             Remeasure(Page.Fans);            // the curve, max and manual blocks are different heights
+        }
+        void UpdateTurbo6200Block() {
+            if (E.S.Fan != FanMode.Turbo6200) return;
+            int f1 = lastFans != null && lastFans[0] > 0 ? lastFans[0] : 0, f2 = lastFans != null && lastFans[1] > 0 ? lastFans[1] : 0;
+            if (turbo6200Fan1 != null) turbo6200Fan1.Text = Level(f1 > 0 ? f1 : 62);
+            if (turbo6200Fan2 != null) turbo6200Fan2.Text = Level(f2 > 0 ? f2 : 62);
+            if (turbo6200Fan1Sub != null) turbo6200Fan1Sub.Text = "CPU fan" + (f1 > 0 ? " · " + Pct(f1) : " · 129%");
+            if (turbo6200Fan2Sub != null) turbo6200Fan2Sub.Text = "GPU fan" + (f2 > 0 ? " · " + Pct(f2) : " · 129%");
+            if (turbo6200CpuTemp != null) turbo6200CpuTemp.Text = double.IsNaN(E.CpuTemp) ? "--" : E.CpuTemp.ToString("0", CultureInfo.InvariantCulture);
+            if (turbo6200GpuTemp != null) turbo6200GpuTemp.Text = double.IsNaN(E.GpuTemp) ? "--" : E.GpuTemp.ToString("0", CultureInfo.InvariantCulture);
+            if (turbo6200CpuSub != null) turbo6200CpuSub.Text = "CPU · " + Trend();
+            if (turbo6200GpuSub != null) turbo6200GpuSub.Text = "GPU Temperature";
         }
         void UpdateMaxBlock() {
             if (E.S.Fan != FanMode.Max) return;
@@ -1644,6 +1692,9 @@ namespace Ohman {
             if (S.Fan == FanMode.Max) {
                 txtFanApplied.Text = "Loud" + (ShowChassis(lastBiosTemp) ? " · ambient " + lastBiosTemp + "°" : "");
                 txtFanRight.Text = "Ctrl+Alt+M toggles";
+            } else if (S.Fan == FanMode.Turbo6200) {
+                txtFanApplied.Text = "Overdrive (6,200 RPM)" + (ShowChassis(lastBiosTemp) ? " · ambient " + lastBiosTemp + "°" : "");
+                txtFanRight.Text = "In-app dedicated overdrive mode";
             } else {
                 txtFanApplied.Text = E.GuardActive ? "Thermal guard: max fan until cool" : "Applied to " + E.ModeName;
                 txtFanRight.Text = "CPU " + (double.IsNaN(E.CpuTemp) ? "--" : E.CpuTemp.ToString("0") + "°") + " · GPU " + (double.IsNaN(E.GpuTemp) ? "--" : E.GpuTemp.ToString("0") + "°");

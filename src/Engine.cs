@@ -12,7 +12,7 @@ using System.Threading;
 
 namespace Ohman {
 
-    public enum FanMode { Auto = 0, Max = 1, Manual = 2, Custom = 3 }   // Custom = the user's own curve, per mode
+    public enum FanMode { Auto = 0, Max = 1, Manual = 2, Custom = 3, Turbo6200 = 4 }   // Custom = the user's own curve, per mode
     public enum KeyAction { Cycle = 0, Show = 1, MaxFan = 2, Off = 3, Run = 4 }
     public enum GpuLevel { Base = 0, Boost = 1, Max = 2 }   // {cTGP,PPAB} = {0,0} / {0,1} / {1,1} — the three payloads OGH sends
 
@@ -32,7 +32,7 @@ namespace Ohman {
             int n;
             bool b;
             switch (k) {
-                case "Fan": if (Settings.TryInt(v, out n)) Fan = (FanMode)Math.Max(0, Math.Min(3, n)); break;
+                case "Fan": if (Settings.TryInt(v, out n)) Fan = (FanMode)Math.Max(0, Math.Min(4, n)); break;
                 case "Curve": { var lv = ParseCurve(v); if (lv != null) CurveLevels = lv; break; }
                 case "GpuCurve": { var lv = ParseCurve(v); if (lv != null) GpuCurveLevels = lv; break; }
                 case "CurveLink": if (bool.TryParse(v, out b)) CurveLinked = b; break;
@@ -501,6 +501,12 @@ namespace Ohman {
                     if (Emergency71Active || GuardActive) return;
                     switch (S.Fan) {
                         case FanMode.Auto: case FanMode.Custom: AutoTick(false); break;
+                        case FanMode.Turbo6200:
+                            if ((DateTime.Now - lastFanWrite).TotalSeconds >= 30) {
+                                WriteLevels(62, 62, "Turbo 6200 RPM overdrive");
+                                lastFanWrite = DateTime.Now;
+                            }
+                            break;
                         case FanMode.Manual:
                             if (curLevel1 == 0 || curLevel2 == 0) {
                                 double restartLimit = (ModeIndex == 0) ? 70.0 : 50.0;
@@ -750,6 +756,7 @@ namespace Ohman {
 
         static int NextStepDown(int cur, int target) {
             if (target >= cur) return target;
+            if (cur > 57) return Math.Max(target, 57);
             if (cur > 48) return Math.Max(target, 48);
             if (cur > 33) return Math.Max(target, 33);
             if (cur > 23) return Math.Max(target, 23);
@@ -782,11 +789,11 @@ namespace Ohman {
 
         bool WriteLevels(int l1, int l2, string what) {
             if (fanLevelsRefused) return false;
-            if (OnBattery && !IsEme && S.Fan == FanMode.Manual && (l1 > 0 || l2 > 0)) {
-                Log.Write("skipped manual fan write on battery: EME mode required for battery fan control");
+            if (OnBattery && !IsEme && (S.Fan == FanMode.Manual || S.Fan == FanMode.Turbo6200) && (l1 > 0 || l2 > 0)) {
+                Log.Write("skipped manual/turbo fan write on battery: EME mode required for battery fan control");
                 return false;
             }
-            int ceiling = IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
+            int ceiling = (S.Fan == FanMode.Turbo6200) ? 62 : IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
             l1 = ClampLevel(l1, ceiling);
             l2 = ClampLevel(l2, ceiling);
 
@@ -809,7 +816,7 @@ namespace Ohman {
                 return true;
             }
 
-            // At least one fan is decreasing: step down sequentially (e.g. 5700 -> 4800 -> 3300 -> 2300 -> 1800 -> 0)
+            // At least one fan is decreasing: step down sequentially (e.g. 6200 -> 5700 -> 4800 -> 3300 -> 2300 -> 1800 -> 0)
             targetFan1 = l1;
             targetFan2 = l2;
 
@@ -830,11 +837,11 @@ namespace Ohman {
 
         bool WriteLevelsRaw(int l1, int l2, string what) {
             if (fanLevelsRefused) return false;
-            if (OnBattery && !IsEme && S.Fan == FanMode.Manual && (l1 > 0 || l2 > 0)) {
-                Log.Write("skipped manual fan write on battery: EME mode required for battery fan control");
+            if (OnBattery && !IsEme && (S.Fan == FanMode.Manual || S.Fan == FanMode.Turbo6200) && (l1 > 0 || l2 > 0)) {
+                Log.Write("skipped manual/turbo fan write on battery: EME mode required for battery fan control");
                 return false;
             }
-            int ceiling = IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
+            int ceiling = (S.Fan == FanMode.Turbo6200) ? 62 : IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
             l1 = ClampLevel(l1, ceiling);
             l2 = ClampLevel(l2, ceiling);
             if (Try(delegate { Hw.GetFanCount(); Hw.SetFanLevels(l1, l2); }, what)) {
@@ -863,6 +870,10 @@ namespace Ohman {
         void ApplyFanCore() {
             if (Emergency71Active || GuardActive) { MaxFan(true, "Guard max fan"); return; }      // the guard owns the fans until it releases
             switch (S.Fan) {
+                case FanMode.Turbo6200:
+                    MaxFan(false, "Max fan off");
+                    WriteLevels(62, 62, "Turbo 6200 RPM overdrive");
+                    break;
                 case FanMode.Max:
                     int maxLvl = IsEme ? 57 : Math.Min(48, P.Curve.Ceiling);
                     WriteLevels(maxLvl, maxLvl, IsEme ? "Max fan (EME 5700 RPM)" : "Max fan (4800 RPM cap)");
@@ -1060,7 +1071,7 @@ namespace Ohman {
             Changed();
         }
         public void SetFan(FanMode mode, int f1, int f2, bool announce) {
-            if (OnBattery && !IsEme && (mode == FanMode.Manual || mode == FanMode.Max || mode == FanMode.Custom)) {
+            if (OnBattery && !IsEme && (mode == FanMode.Manual || mode == FanMode.Max || mode == FanMode.Custom || mode == FanMode.Turbo6200)) {
                 Say("Fan control on battery requires EME mode");
                 Changed();
                 return;
@@ -1070,13 +1081,13 @@ namespace Ohman {
             if (mode == FanMode.Max && S.Fan != FanMode.Max) { maxSince = DateTime.MinValue; fanBeforeMax = S.Fan; }   // saved with S below
             NoteFanMode(mode);
             S.Fan = mode;
-            int ceiling = IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
+            int ceiling = (mode == FanMode.Turbo6200) ? 62 : IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
             S.Fan1 = ClampLevel(f1, ceiling);
             S.Fan2 = ClampLevel(f2, ceiling);
             S.Save();
             if ((Emergency71Active || GuardActive) && mode != FanMode.Max) { Say("Thermal guard is holding max fan; " + Choice.Fan[Choice.Of(mode)] + " resumes when cool"); Changed(); return; }
             lock (applySync) { ApplyFanCore(); lastFanWrite = DateTime.Now; }
-            if (announce) Say(mode == FanMode.Max ? "Max fan" : mode == FanMode.Manual ? "Fans " + Rpm(S.Fan1) + " / " + Rpm(S.Fan2) : mode == FanMode.Custom ? "Fans on your curve" : "Fans auto");
+            if (announce) Say(mode == FanMode.Turbo6200 ? "6200 RPM Overdrive active" : mode == FanMode.Max ? "Max fan" : mode == FanMode.Manual ? "Fans " + Rpm(S.Fan1) + " / " + Rpm(S.Fan2) : mode == FanMode.Custom ? "Fans on your curve" : "Fans auto");
             Changed();
         }
         public void ToggleMaxFan() { SetFan(S.Fan == FanMode.Max ? fanBeforeMax : FanMode.Max, S.Fan1, S.Fan2, false); }
