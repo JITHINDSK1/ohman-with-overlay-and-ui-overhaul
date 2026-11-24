@@ -224,6 +224,9 @@ namespace Ohman {
             TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
             root = LoadXaml();
             Content = root;
+            foreach (System.Collections.DictionaryEntry entry in root.Resources) {
+                Resources[entry.Key] = entry.Value;
+            }
             root.Resources["UiFont"] = Ui.UiFont;
             root.Resources["MonoFont"] = Ui.MonoFont;
             // the live accent: a bound brush (unfreezable) behind the XAML's DynamicResource references and the code-built controls
@@ -1333,13 +1336,13 @@ namespace Ohman {
                             selectedSrcVk = vk;
                             capturingSrc = false;
                             txtSrcKeyName.Text = KeyName(vk);
-                            txtSrcKeyName.Foreground = (Brush)FindResource("TextHi");
+                            txtSrcKeyName.Foreground = Ui.TextHi;
                             ShowToast("Selected " + KeyName(vk) + " as source key", false);
                         } else {
                             selectedDstVk = vk;
                             capturingDst = false;
                             txtDstKeyName.Text = KeyName(vk);
-                            txtDstKeyName.Foreground = (Brush)FindResource("TextHi");
+                            txtDstKeyName.Foreground = Ui.TextHi;
                             ShowToast("Selected " + KeyName(vk) + " as target key", false);
                         }
                     }
@@ -1841,9 +1844,9 @@ namespace Ohman {
                 selectedSrcVk = 0;
                 selectedDstVk = 0;
                 txtSrcKeyName.Text = "Click & press key...";
-                txtSrcKeyName.Foreground = (Brush)FindResource("Desc");
+                txtSrcKeyName.Foreground = Ui.Desc;
                 txtDstKeyName.Text = "Click & press key...";
-                txtDstKeyName.Foreground = (Brush)FindResource("Desc");
+                txtDstKeyName.Foreground = Ui.Desc;
             };
 
             btnClearAllRemaps.MouseLeftButtonUp += delegate {
@@ -1910,7 +1913,7 @@ namespace Ohman {
                 uint src = kvp.Key;
                 uint dst = kvp.Value;
                 Border row = new Border {
-                    Background = (Brush)FindResource("Sunken"),
+                    Background = Ui.Sunken,
                     CornerRadius = new CornerRadius(6),
                     Margin = new Thickness(0, 3, 0, 3),
                     Padding = new Thickness(14, 9, 14, 9)
@@ -1920,11 +1923,13 @@ namespace Ohman {
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 StackPanel sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                sp.Children.Add(new TextBlock { Text = KeyName(src), Style = (Style)FindResource("MonoVal"), FontWeight = FontWeights.SemiBold });
-                sp.Children.Add(new TextBlock { Text = "   ➜   ", Style = (Style)FindResource("Mono"), Foreground = (Brush)FindResource("Desc") });
-                sp.Children.Add(new TextBlock { Text = KeyName(dst), Style = (Style)FindResource("MonoVal"), Foreground = accent, FontWeight = FontWeights.SemiBold });
+                sp.Children.Add(new TextBlock { Text = KeyName(src), FontFamily = Ui.MonoFont, FontSize = 13, Foreground = Ui.TextHi, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+                sp.Children.Add(new TextBlock { Text = "   →   ", FontFamily = Ui.MonoFont, FontSize = 13, Foreground = Ui.Desc, VerticalAlignment = VerticalAlignment.Center });
+                sp.Children.Add(new TextBlock { Text = KeyName(dst), FontFamily = Ui.MonoFont, FontSize = 13, Foreground = accent, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
 
-                TextBlock btnDel = new TextBlock { Text = "Remove", Style = (Style)FindResource("Link"), Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center };
+                TextBlock btnDel = new TextBlock { Text = "Remove", FontFamily = Ui.UiFont, FontSize = 12, Foreground = Ui.Brush(Ui.Danger), Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center };
+                btnDel.MouseEnter += delegate { btnDel.TextDecorations = TextDecorations.Underline; };
+                btnDel.MouseLeave += delegate { btnDel.TextDecorations = null; };
                 uint sCopy = src;
                 btnDel.MouseLeftButtonUp += delegate { RemoveRemap(sCopy); };
 
@@ -2543,7 +2548,7 @@ namespace Ohman {
                     Dispatcher.BeginInvoke((Action)delegate {
                         if (txtSrcKeyName != null) {
                             txtSrcKeyName.Text = KeyName(vk);
-                            txtSrcKeyName.Foreground = (Brush)FindResource("TextHi");
+                            txtSrcKeyName.Foreground = Ui.TextHi;
                         }
                     });
                     return (IntPtr)1;
@@ -2554,7 +2559,7 @@ namespace Ohman {
                     Dispatcher.BeginInvoke((Action)delegate {
                         if (txtDstKeyName != null) {
                             txtDstKeyName.Text = KeyName(vk);
-                            txtDstKeyName.Foreground = (Brush)FindResource("TextHi");
+                            txtDstKeyName.Foreground = Ui.TextHi;
                         }
                     });
                     return (IntPtr)1;

@@ -1,153 +1,142 @@
-<p align="center"><img src="docs/hero.png" alt="The Ohman window: modes, live temperatures and fan speeds, a fan curve and the keyboard lighting editor"></p>
+# Ohman — Overlay & UI Overhaul
 
 <p align="center">
-<a href="https://github.com/P4R1H/Ohman/releases/latest/download/Ohman.exe"><img alt="Download Ohman.exe" src="https://img.shields.io/badge/Download%20Ohman.exe-3F8CFF?style=for-the-badge&logo=windows&logoColor=white"></a>
-&nbsp;
-<a href="https://ohmanapp.github.io/"><img alt="Website" src="https://img.shields.io/badge/Website-21262D?style=for-the-badge"></a>
-<a href="docs/laptops.md"><img alt="Supported laptops" src="https://img.shields.io/badge/Supported%20laptops-21262D?style=for-the-badge"></a>
-<a href="docs/research.md"><img alt="How the firmware works" src="https://img.shields.io/badge/How%20it%20works-21262D?style=for-the-badge"></a>
+  <strong>Ultra-lightweight, zero-bloat hardware companion for HP OMEN and Victus laptops.</strong><br>
+  Complete control over fans, thermal modes, power gain, keyboard remapping, and RGB lighting — without OMEN Gaming Hub's telemetry, ads, or background services.
 </p>
 
-Don't you love paying $2,500 for a laptop and still having ads pushed down your throat by mandatory software
-with no alternative? Ohman is the alternative. One executable, no services, no drivers, no account, no ads.
-Same firmware interface as OMEN Gaming Hub, same bytes, nothing else.
+<p align="center">
+  <a href="https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul"><img alt="GitHub Repo" src="https://img.shields.io/badge/GitHub-Repository-238636?style=for-the-badge&logo=github"></a>
+  &nbsp;
+  <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D6?style=for-the-badge&logo=windows">
+  &nbsp;
+  <img alt="Framework" src="https://img.shields.io/badge/.NET%20Framework-4.8%20(Native)-512BD4?style=for-the-badge">
+  &nbsp;
+  <img alt="License" src="https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge">
+</p>
 
-## Features
+---
 
-| | |
-|---|---|
-| **Modes** | Eco · Balanced · Performance, one click, the OMEN key, or a hotkey. Each mode remembers its own fans, power gain and GPU choice, and the whole window takes that mode's colour. |
-| **Fans** | Auto (this model's own curve), Max, Manual per fan, or your own curve: seven points you drag, a floor, a ramp delay, and a separate GPU curve if you unlink it. The live reading rides the curve. |
-| **Max fan** | Full speed with a way back: it returns to Auto once the chips are below 60° for two minutes, or after 15, 30 or 60 minutes. |
-| **Power gain** | OGH's "Smart Performance Gain": +0 to +15 W on the CPU+GPU budget NVIDIA Dynamic Boost draws from. |
-| **GPU power** | Base · Boost · Max, or follow the mode. |
-| **Graphics** | Hybrid, Discrete (the MUX) or iGPU only, whichever the firmware offers, with the restart it needs. |
-| **Lighting** | The keyboard drawn as it actually lights. Select a key, a row, a zone or the whole board, then pick a hue and a shade; or Breathe, Cycle, Wave, or hand it to Windows Dynamic Lighting. One zone, four zones or per key, whichever your keyboard has. |
-| **Display** | Refresh rate, and the lowest rate on battery if you want it. |
-| **Live** | CPU and GPU temperature, CPU package watts, fan speeds, load, clocks, chassis sensor, battery. CPU temperature on the tray icon. |
-| **Tray** | Modes, fan mode, the backlight, refresh rate and graphics, without opening the window. |
-| **OMEN key** | Opens the panel, cycles modes, toggles max fan, or runs a command of your choice. OGH's key handler is stopped, reversibly. Shift+F11 cycles modes; Ctrl+Alt+E/B/P/M/O for the rest. |
-| **Safety** | A thermal guard forces max fan on a hot CPU, a hot chassis or stalled fans. It can be switched off, with a warning. Fans are never set below 1800 rpm. |
-| **Extras** | Starts with Windows without a UAC prompt, Eco on battery, Windows power-mode sync, an on-screen flash when a key changes something, an update check that never installs anything for you. |
+## ⚡ What is this Overhaul?
 
-Settings live in `ohman.state`, everything the app does goes to `ohman.log`. Both sit beside the executable.
+This fork transforms **Ohman** into a high-performance, everyday laptop companion with on-screen HUD displays, advanced stepped fan cooling algorithms, real-time keyboard remapping, custom per-key RGB lighting, and aggressive memory optimization:
 
-To remove it: turn off **Start with Windows** and **Take over the OMEN key** in Settings, then delete the
-folder. Those two are the only things Ohman writes outside it.
+- **Zero-RPM Fan Thresholds**: Fans completely shut off (0 RPM) when CPU & GPU temperatures are under 45°C.
+- **Stepped Fan Deceleration**: Prevents harsh mechanical wear and sudden acoustic drops by ramping down speeds progressively (e.g. `4800` ➔ `3300` ➔ `2300` ➔ `1800` ➔ `0 RPM`).
+- **On-Screen Display (OSD / HUD)**: Floating visual overlay with mode badges, thermal icons, and instant system state feedback.
+- **Global Hotkeys**:
+  - <kbd>Win</kbd> + <kbd>O</kbd>: Cycle performance modes (**Quiet**, **Balanced**, **Performance**, **Extreme / EME**) with a 5-second HUD overlay.
+  - <kbd>Fn</kbd> + <kbd>Q</kbd>: Quick-toggle between active mode and max cooling **5700 RPM Turbo Mode** with HUD notification.
+- **6200 RPM Hardware Overdrive**: Dedicated in-app tab for maximum fan boost.
+- **System-Wide Keyboard Remapping**: Low-level Windows hook (`WH_KEYBOARD_LL`) with quick presets (Caps Lock ➔ Ctrl, Caps Lock ➔ Esc, Swap Alt ↔ Win, etc.) and interactive key-capture.
+- **Per-Key RGB Lighting**: Unlocked individual key, row, and zone color customization with custom hex palettes and one-click reset.
+- **Ultra-Lightweight (~20–30 MB RAM)**: Removed heavy background process polling and false-positive security scanners; continuous memory working-set trimming keeps footprint minimal.
 
-## Install
+---
 
-Download `Ohman.exe` from [Releases](../../releases/latest) and run it. It asks for administrator rights,
-because the firmware interface needs them. It starts with Windows from then on, which you can turn off in
-Settings.
+## 🚀 Key Features
 
-Or build it with the compiler that already ships inside Windows. No SDK, no NuGet, no toolchain:
+### 1. Thermal & Performance Modes
+| Mode | Behavior & Target |
+| :--- | :--- |
+| **Quiet** | Fans stay completely off up to 60°C and only engage at 70°C for near-silent operation during light work or study. |
+| **Balanced** | Default HP thermal curve with smart dynamic boost and zero-RPM below 45°C. |
+| **Performance** | Elevated power ceilings and aggressive cooling for heavy workloads and gaming. |
+| **EME (Extreme Mode)** | Unrestricted battery/AC fan control and full hardware cooling headroom. |
 
-```
+### 2. Fan Controls & Thermal Guard
+- **Zero-RPM Mode**: True fan shutdown below 45°C across all modes.
+- **Sequential Stepping**: Gradual step-by-step deceleration to ease fan motor bearing strain and avoid distracting noise spikes.
+- **Turbo Profiles**:
+  - `5700 RPM Mode`: Accessible anywhere via <kbd>Fn</kbd> + <kbd>Q</kbd>.
+  - `6200 RPM Mode`: Dedicated in-app fan tab for extreme cooling scenarios.
+- **Custom Curves**: Interactive 7-point fan curve editor with separate CPU/GPU unlink support.
+- **Thermal Guard**: Emergency failsafe that restores high fan speeds if hardware temperatures exceed safety limits.
+
+### 3. Keyboard Remapping (`WH_KEYBOARD_LL`)
+- Directly intercepts keystrokes via low-level Windows keyboard hooks and maps output keys via `keybd_event`.
+- Completely immune to infinite recursion loops using `LLKHF_INJECTED` filtering.
+- **Popular Presets Built-in**:
+  - `Caps Lock → Ctrl`
+  - `Caps Lock → Escape`
+  - `Swap Alt ↔ Windows`
+  - `Caps Lock → Backspace`
+- **Custom Mapping**: Click "Detect Key" and press any key on your keyboard, or click the desired key on the visual keyboard layout.
+
+### 4. Custom Lighting
+- Choose between **Key**, **Row**, **Zone**, or **All** granularities.
+- Supports Static, Breathe, Cycle, Wave, and Windows Dynamic Lighting.
+- Click any individual key on the interactive UI keyboard to assign custom hex colors.
+- "Reset custom key colors" button to return to stock mode defaults in one click.
+
+### 5. Hotkeys & Shortcuts Summary
+| Shortcut | Action |
+| :--- | :--- |
+| <kbd>Win</kbd> + <kbd>O</kbd> | Cycle Modes (Quiet ➔ Balanced ➔ Performance ➔ EME) + Show HUD Overlay |
+| <kbd>Fn</kbd> + <kbd>Q</kbd> | Toggle 5700 RPM Max Fan Mode + Show HUD Overlay |
+| <kbd>Shift</kbd> + <kbd>F11</kbd> | Cycle Modes (legacy shortcut) |
+| <kbd>Esc</kbd> | Minimize to system tray (when app window is focused) |
+
+---
+
+## 🛠️ Building & Running
+
+### Requirements
+- Windows 10 or 11 (64-bit).
+- Built with the Microsoft .NET Framework 4.8 C# compiler (`csc.exe`) included with Windows — **no Visual Studio, SDK, or external dependencies required**.
+
+### Quick Build & Run
+Run from PowerShell or Command Prompt:
+
+```cmd
+:: Build preview (non-elevated, simulated hardware UI)
+build.cmd preview
+
+:: Build production binaries (requires Administrator for BIOS WMI)
 build.cmd
 ```
 
-`preview\Ohman.exe` is the same UI on simulated hardware and needs no administrator rights.
+Output binaries will be placed in the root (`Ohman.exe`) and `preview\Ohman.exe`.
 
-## Your laptop
-
-**Every OMEN and Victus laptop is supported.** Ohman asks the firmware what generation it is and drives it
-accordingly. Controls your firmware does not offer are hidden rather than broken.
-
-OMEN 15, 16 and 17 &middot; OMEN MAX 16 &middot; OMEN Transcend 14 and 16 &middot; Victus 15 and 16, including
-the S and R.
-
-Note: Ohman was built and checked byte for byte against OMEN Gaming Hub on one machine, an HP OMEN
-Transcend 14 (2024, board 8C58). Owners have since run the checklist on their own boards and confirmed
-them; every model and its board ids are in [docs/laptops.md](docs/laptops.md).
-
-> ### Get yours verified
-> Five minutes: run [the checklist](docs/laptops.md#verifying-your-laptop) and `tools\support-info.cmd`, then
-> open a **Verify my laptop** issue with the file it writes. Everybody with that board then gets a profile
-> that has been tested on a real machine instead of worked out from the firmware.
-
-If a control is wrong on your model, open a **New laptop support** issue with the same file and, if you can get
-it, OGH's own log from a session where you clicked every mode:
-`%LOCALAPPDATA%\Packages\AD2F1837.OMENCommandCenter_v10z8vjag6ke6\LocalCache\Local\HPOMEN\`. That log is what
-made the Transcend 14 profile exact.
-
-## How it works
-
-HP exposes a BIOS mailbox as the WMI class `hpqBIntM`. Ohman uses the commands OGH uses: performance mode
-(`0x1A`), max fan (`0x27`), fan levels (`0x2E`), CPU+GPU power budget (`0x29`), GPU power (`0x22`), graphics
-mode (`0x52`), keyboard lighting (`0x20009`), plus read-only queries. The OMEN key arrives as a WMI event
-(`hpqBEvnt`). Every byte and every measured firmware behaviour is written down in
-[docs/research.md](docs/research.md), including the things that are *not* safe to do and why.
-
-- The firmware forgets a user-defined fan state after about 120 seconds, so Ohman keeps renewing it. That is
-  why it has to stay running to hold a curve. It never writes a level below 1800 rpm.
-- The thermal guard runs on its own ten-second timer and forces maximum fan whatever mode you picked.
-
-## Adding a laptop in code
-
-A verified laptop is one entry in [`src/Platform.cs`](src/Platform.cs):
-
-```csharp
-new PlatformProfile {
-    Name = "HP OMEN 16 (2023, 16-wf0xxx)",
-    Boards = new[] { "8BAA" },
-    Notes  = "Verified 2026-09-10 against OGH 1101.x logs."
-}
+### One-liner Build & Launch:
+```powershell
+cmd /c build.cmd; Start-Process -FilePath ".\Ohman.exe" -Verb RunAs
 ```
 
-Everything else either has a default or is read from the firmware at run time. Override only what the evidence
-says is different, and put the evidence in `Notes`. A support issue becomes exactly that entry and a pull
-request; see [CONTRIBUTING.md](CONTRIBUTING.md).
+---
 
-## Tools
+## 💻 Supported Hardware
 
-| | |
-|---|---|
-| `tools\support-info.cmd` | data for a support request |
-| `tools\verify.cmd` | read-only check of every query the app uses, plus a key-event capture |
-| `tools\powertest.ps1` | A/B the power-gain slider on GPU watts and clocks |
-| `tools\fantest.cmd` | holds the fans at zero for 60 s, then aborts on its own. Run it on a cool, idle machine |
-| `tools\omenprobe.cs` | CLI for raw BIOS calls |
+Supports **all modern HP OMEN and Victus laptops** via HP's native BIOS WMI interface (`hpqBIntM`):
+- **HP OMEN 15, 16, 17**
+- **HP OMEN MAX 16**
+- **HP OMEN Transcend 14 & 16**
+- **HP Victus 15 & 16 (including S and R series)**
 
-## Layout
+If your laptop model is not yet in the verified list, Ohman automatically detects your BIOS generation and builds a matching dynamic profile.
+
+---
+
+## 📁 Project Architecture
 
 ```
-src\Platform.cs   platform profiles: the only model-specific file
-src\Hardware.cs   the WMI/BIOS mailbox + simulated hardware
-src\Lighting.cs   keyboard lighting (0x20009) + the Windows Dynamic Lighting hand-over
-src\Engine.cs     settings, apply logic, keep-alive, thermal guard, OMEN key, OGH takeover
-src\Sensors.cs    perf counters + nvidia-smi
-src\Curve.cs      the fan-curve graph
-src\Keyboard.cs   the keyboard drawing
-src\Ui.xaml, .cs  window, pages, tray, hotkeys, on-screen flash
-src\Program.cs    entry point
-fonts\            IBM Plex, embedded in the exe (OFL, see fonts\OFL.txt)
+src/
+├── Engine.cs          # Thermal policy, fan stepping logic, settings, keep-alive loop
+├── Ui.cs              # Main window code, HUD overlay triggers, memory trimming, key hook
+├── Ui.xaml            # Modern dark WPF layout and visual components
+├── Controls.cs        # Custom segmented bars, color strip pickers, switches
+├── Keyboard.cs        # Visual interactive keyboard SVG/geometry renderer
+├── Hardware.cs        # WMI / BIOS mailbox communication (hpqBIntM) + Demo hardware
+├── Lighting.cs        # 4-zone / per-key HID lighting controller
+├── Curve.cs           # Spline-interpolated custom fan curve editor
+├── Sensors.cs         # RAPL CPU package power counters & hardware sensors
+└── Program.cs         # Application entry point, single-instance mutex, CLI flags
 ```
 
-Pushing a `v*` tag builds on a Windows runner and attaches the binaries to a release.
+---
 
-## Later
+## 📄 License & Trademarks
 
-- **Configurable hotkeys**, instead of the fixed set.
-- **A thermal guard you can set**: the speed it goes to, next to the switch that turns it on, so it can be a
-  rescue rather than always full fans.
-- **Benchmarking tab**: run a short load and record clocks, watts, temperatures and throttling.
-- **Fan curve import/export** so a verified model's curve can be shared as a file.
-
-Ideas and issues are welcome.
-
-## Risk
-
-While this has been tested extensively, it is still sending commands to your laptop's firmware.
-Use at your own risk.
-
-## Declaration
-
-Claude was used for in-depth research on laptop models and their manuals so I can add extensive device support
-to Ohman. It also assisted in code-writing. The code has been independently verified and security reviewed. Feel free to review it on your own terms and suggest improvements if any.
-
-## Licence
-
-GPL-3.0-or-later for the code. OFL 1.1 for the Font.
-
-OMEN is a trademark of HP Inc. This project is not affiliated with HP.
+- **Code**: Licensed under [GPL-3.0-or-later](LICENSE).
+- **Fonts**: IBM Plex Sans / Mono licensed under the [SIL Open Font License 1.1](fonts/OFL.txt).
+- **Trademarks**: *OMEN* and *Victus* are registered trademarks of HP Inc. This project is independent and not affiliated with HP.
