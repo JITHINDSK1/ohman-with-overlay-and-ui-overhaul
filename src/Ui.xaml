@@ -502,10 +502,10 @@
                 <Grid x:Name="PowerRow">
                   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                   <Grid>
-                    <TextBlock Text="Power Gain" Style="{StaticResource Row}" FontWeight="SemiBold" ToolTip="What OMEN Gaming Hub calls Smart Performance Gain: a bigger shared CPU + GPU power budget"/>
-                    <TextBlock x:Name="TxtPower" Style="{StaticResource MonoVal}" HorizontalAlignment="Right" Width="46" Text="+0 W"/>
+                    <TextBlock Text="Power Gain" Style="{StaticResource Row}" FontWeight="SemiBold" ToolTip="Shared CPU + GPU power budget: up to +45 W Ultra Boost headroom"/>
+                    <TextBlock x:Name="TxtPower" Style="{StaticResource MonoVal}" HorizontalAlignment="Right" Width="60" Text="+0 W"/>
                   </Grid>
-                  <Slider x:Name="SlPower" Grid.Row="1" Style="{StaticResource Sl}" Minimum="0" Maximum="15" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,12,0,0"/>
+                  <Slider x:Name="SlPower" Grid.Row="1" Style="{StaticResource Sl}" Minimum="0" Maximum="45" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,12,0,0"/>
                 </Grid>
               </Border>
             </Grid>
