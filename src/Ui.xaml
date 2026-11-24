@@ -502,10 +502,10 @@
                 <Grid x:Name="PowerRow">
                   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                   <Grid>
-                    <TextBlock Text="Power Gain" Style="{StaticResource Row}" FontWeight="SemiBold" ToolTip="Shared CPU + GPU power budget: up to +45 W Ultra Boost headroom"/>
-                    <TextBlock x:Name="TxtPower" Style="{StaticResource MonoVal}" HorizontalAlignment="Right" Width="60" Text="+0 W"/>
+                    <TextBlock Text="Power Gain" Style="{StaticResource Row}" FontWeight="SemiBold" ToolTip="What OMEN Gaming Hub calls Smart Performance Gain: a bigger shared CPU + GPU power budget"/>
+                    <TextBlock x:Name="TxtPower" Style="{StaticResource MonoVal}" HorizontalAlignment="Right" Width="46" Text="+0 W"/>
                   </Grid>
-                  <Slider x:Name="SlPower" Grid.Row="1" Style="{StaticResource Sl}" Minimum="0" Maximum="45" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,12,0,0"/>
+                  <Slider x:Name="SlPower" Grid.Row="1" Style="{StaticResource Sl}" Minimum="0" Maximum="15" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,12,0,0"/>
                 </Grid>
               </Border>
             </Grid>
@@ -918,6 +918,121 @@
             </StackPanel>
           </Border>
         </StackPanel>
+      </StackPanel>
+
+      <!-- ============ INPUT CONTROLS ============ -->
+      <StackPanel x:Name="PageInput" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
+        <Grid x:Name="HeadInput" Background="Transparent">
+          <TextBlock Text="Input Controls" Style="{StaticResource Title}"/>
+          <TextBlock x:Name="TxtInputStatus" Style="{StaticResource Mono}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- Touchpad Section Card -->
+        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="18,16" Margin="0,18,0,0">
+          <StackPanel>
+            <Grid Margin="0,0,0,12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Text="TOUCHPAD CONTROLS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBlock Text="Internal Precision Touchpad" Style="{StaticResource Row}" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock Text="Enable or disable the built-in precision trackpad hardware device." Style="{StaticResource RowSub}" Margin="0,2,0,0"/>
+              </StackPanel>
+              <!-- Live Status Pill & Toggle Button -->
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border x:Name="BadgeTouchpadStatus" CornerRadius="6" Padding="10,4" Margin="0,0,14,0" Background="#1A36D989">
+                  <TextBlock x:Name="TxtTouchpadStatusBadge" Text="ENABLED" FontSize="11" FontWeight="SemiBold" Foreground="#36D989"/>
+                </Border>
+                <Border x:Name="BtnToggleTouchpad" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="14,7" Cursor="Hand">
+                  <TextBlock x:Name="TxtToggleTouchpadBtn" Text="Disable Touchpad" Foreground="{StaticResource Text}" FontSize="12" FontWeight="Medium"/>
+                </Border>
+              </StackPanel>
+            </Grid>
+
+            <!-- Touchpad Details & Shortcuts Grid -->
+            <Border Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,4,0,0">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                  <TextBlock Text="HARDWARE HOTKEY" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" Margin="0,0,0,4"/>
+                  <TextBlock Text="Fn + F11" Foreground="{StaticResource TextHi}" FontSize="13" FontWeight="SemiBold"/>
+                  <TextBlock Text="Dedicated laptop hotkey; synchronized with Ohman live." Style="{StaticResource Hint}" Margin="0,2,0,0"/>
+                </StackPanel>
+                <Border Grid.Column="1" Width="1" Background="{StaticResource Edge}" Margin="16,0"/>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Text="GLOBAL QUICK SHORTCUT" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" Margin="0,0,0,4"/>
+                  <TextBlock Text="Win + Ctrl + T" Foreground="{StaticResource TextHi}" FontSize="13" FontWeight="SemiBold"/>
+                  <TextBlock Text="Ohman instant system-wide toggle shortcut." Style="{StaticResource Hint}" Margin="0,2,0,0"/>
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- Gesture / 4-Finger Tap Investigation Note -->
+            <Border Background="{StaticResource Sunken}" CornerRadius="8" Padding="14,12" Margin="0,12,0,0">
+              <StackPanel>
+                <TextBlock Text="FOUR-FINGER GESTURE &amp; DRIVER ARCHITECTURE" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" LineHeight="17"
+                           Text="Windows Precision Touchpad (PTP) drivers process multi-touch contacts exclusively in kernel space (mshwgst.sys). Windows natively intercepts 4-finger single taps for OS shell actions (Action Center/Search), but exposes no raw 4-finger double-tap API to third-party applications. Furthermore, when the touchpad is disabled, hardware sensing is suspended and cannot receive finger taps to turn itself back on."/>
+                <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" LineHeight="17" Margin="0,6,0,0"
+                           Text="Supported alternatives: Use Fn + F11, the Win + Ctrl + T shortcut, or configure Windows Settings (Bluetooth &amp; devices &gt; Touchpad &gt; Advanced gestures) to map 4-finger tap to Win + Ctrl + T for instant hardware toggling."/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <!-- Keyboard Section Card -->
+        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="18,16" Margin="0,14,0,0">
+          <StackPanel>
+            <Grid Margin="0,0,0,12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock Text="KEYBOARD CONTROLS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <TextBlock Text="Built-in Laptop Keyboard" Style="{StaticResource Row}" FontWeight="SemiBold" FontSize="14"/>
+                <TextBlock Text="Temporarily lock or unlock typing to clean keyboard or prevent accidental presses." Style="{StaticResource RowSub}" Margin="0,2,0,0"/>
+              </StackPanel>
+              <!-- Live Status Pill & Toggle Button -->
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border x:Name="BadgeKeyboardStatus" CornerRadius="6" Padding="10,4" Margin="0,0,14,0" Background="#1A36D989">
+                  <TextBlock x:Name="TxtKeyboardStatusBadge" Text="ACTIVE" FontSize="11" FontWeight="SemiBold" Foreground="#36D989"/>
+                </Border>
+                <Border x:Name="BtnToggleKeyboard" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="14,7" Cursor="Hand">
+                  <TextBlock x:Name="TxtToggleKeyboardBtn" Text="Disable Keyboard" Foreground="{StaticResource Text}" FontSize="12" FontWeight="Medium"/>
+                </Border>
+              </StackPanel>
+            </Grid>
+
+            <!-- Recovery Notice & Safety Mechanism -->
+            <Border Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,4,0,0">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                  <TextBlock Text="EMERGENCY RESTORE SHORTCUT" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" Margin="0,0,0,4"/>
+                  <TextBlock Text="Ctrl + Alt + K" Foreground="{StaticResource TextHi}" FontSize="13" FontWeight="SemiBold"/>
+                  <TextBlock Text="Instantly unlocks and restores keyboard input anytime." Style="{StaticResource Hint}" Margin="0,2,0,0"/>
+                </StackPanel>
+                <Border Grid.Column="1" Width="1" Background="{StaticResource Edge}" Margin="16,0"/>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Text="SAFETY LOCK PROTECTION" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" Margin="0,0,0,4"/>
+                  <TextBlock Text="Low-Level Input Interception" Foreground="{StaticResource TextHi}" FontSize="13" FontWeight="SemiBold"/>
+                  <TextBlock Text="Safe software filter. Mouse, touchpad, and hotkey recovery stay responsive." Style="{StaticResource Hint}" Margin="0,2,0,0"/>
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
       </StackPanel>
 
       <!-- ============ SETTINGS ============ -->
