@@ -40,7 +40,7 @@ namespace Ohman {
                 case "CurveRamp": if (Settings.TryInt(v, out n)) CurveRamp = Math.Max(1, Math.Min(10, n)); break;
                 case "Fan1": if (Settings.TryInt(v, out n)) Fan1 = n; break;
                 case "Fan2": if (Settings.TryInt(v, out n)) Fan2 = n; break;
-                case "TdpOffset": if (Settings.TryInt(v, out n)) TdpOffset = Math.Max(0, Math.Min(45, n)); break;   // the engine clamps again to the profile's range
+                case "TdpOffset": if (Settings.TryInt(v, out n)) TdpOffset = Math.Max(0, Math.Min(15, n)); break;   // the engine clamps again to the profile's range
                 case "Gpu": if (Settings.TryInt(v, out n)) Gpu = (GpuLevel)Math.Max(0, Math.Min(2, n)); break;
                 case "GpuAuto": if (bool.TryParse(v, out b)) GpuAuto = b; break;
             }
@@ -75,7 +75,7 @@ namespace Ohman {
             new ModeProfile(),
             new ModeProfile(),
             new ModeProfile { TdpOffset = 15 },
-            new ModeProfile { TdpOffset = 45, Fan = FanMode.Manual }
+            new ModeProfile { TdpOffset = 15, Fan = FanMode.Manual }
         };
         public ModeProfile Cur { get { return Modes[Math.Max(0, Math.Min(3, ModeIndex))]; } }
         public FanMode Fan { get { return Cur.Fan; } set { Cur.Fan = value; } }

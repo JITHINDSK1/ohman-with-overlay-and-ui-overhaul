@@ -50,7 +50,7 @@ namespace Ohman {
         const string ICO_UPDATE = "M12 4 V14.2 M7.6 10.2 L12 14.8 L16.4 10.2 M4.6 19 H19.4";
         const string ICO_FANS = "M3 8.5 C5.5 5.5 8.5 11.5 12 8.5 C15.5 5.5 18.5 11.5 21 8.5 M3 15.5 C5.5 12.5 8.5 18.5 12 15.5 C15.5 12.5 18.5 18.5 21 15.5";
         const string ICO_KBD = "M2.5 7.5 A2 2 0 0 1 4.5 5.5 H19.5 A2 2 0 0 1 21.5 7.5 V16.5 A2 2 0 0 1 19.5 18.5 H4.5 A2 2 0 0 1 2.5 16.5 Z M6 9.5 H6.4 M9.8 9.5 H10.2 M13.6 9.5 H14 M17.4 9.5 H17.8 M6 12.5 H6.4 M9.8 12.5 H10.2 M13.6 12.5 H14 M17.4 12.5 H17.8 M7.5 15.5 H16.5";
-        const string ICO_INPUT = "M3 6 A2 2 0 0 1 5 4 H19 A2 2 0 0 1 21 6 V18 A2 2 0 0 1 19 20 H5 A2 2 0 0 1 3 18 Z M3 15 H21 M12 15 V20";
+        const string ICO_KBD_LOCK = "M7 10 V7 A5 5 0 0 1 17 7 V10 M5 10 H19 A2 2 0 0 1 21 12 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V12 A2 2 0 0 1 5 10 Z M12 14 V17";
 
         readonly Engine E;
         readonly Sensors sensors;
@@ -82,11 +82,10 @@ namespace Ohman {
         Border btnDetectSrcKey, btnDetectDstKey, btnAddRemap;
         TextBlock txtSrcKeyName, txtDstKeyName, txtNoRemaps, btnClearAllRemaps, btnResetKeyColors;
         StackPanel remapListHost;
-        // input controls
-        Border badgeTouchpadStatus, btnToggleTouchpad, badgeKeyboardStatus, btnToggleKeyboard;
-        TextBlock txtTouchpadStatusBadge, txtToggleTouchpadBtn, txtKeyboardStatusBadge, txtToggleKeyboardBtn, txtInputStatus;
+        // input controls (keyboard lock)
+        Border badgeKeyboardStatus, btnToggleKeyboard;
+        TextBlock txtKeyboardStatusBadge, txtToggleKeyboardBtn, txtInputStatus;
         bool keyboardLocked;
-        string tpInstanceId = @"HID\ELAN012F&COL03\4&1360B7F&1&0002";
         // home
         TextBlock txtHomeTitle, txtHomeStatus, subCpu, subGpu, txtPower, txtFoot, txtFootRight, txtLightSub, txtErr, txtInfo, btnSupport, btnReset;
         Run bigCpu, bigGpu, bigFan1, bigFan2, bigRamUsed, bigRamTotal, bigVramUsed, bigVramTotal;
@@ -198,10 +197,7 @@ namespace Ohman {
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr wp, IntPtr lp);
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
         [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr h, IntPtr min, IntPtr max);
-        [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)] static extern int CM_Locate_DevNode(out uint pdnDevInst, string pDeviceID, uint ulFlags);
-        [DllImport("cfgmgr32.dll")] static extern int CM_Get_DevNode_Status(out uint pulStatus, out uint pulProblemNumber, uint dnDevInst, uint ulFlags);
-        [DllImport("cfgmgr32.dll")] static extern int CM_Disable_DevNode(uint dnDevInst, uint ulFlags);
-        [DllImport("cfgmgr32.dll")] static extern int CM_Enable_DevNode(uint dnDevInst, uint ulFlags);
+
 
         public static void TrimMemory() {
             try {
@@ -270,7 +266,7 @@ namespace Ohman {
             E.StateChanged += delegate { Dispatcher.BeginInvoke((Action)Refresh); };
             E.Toast += delegate(string m, bool err) { Dispatcher.BeginInvoke((Action)delegate { ShowToast(m, err); }); };
             E.KeyPressed += delegate(KeyAction a) { Dispatcher.BeginInvoke((Action)delegate { OnKey(a); }); };
-            E.AnyKeyEvent += delegate(uint id, uint data) { Dispatcher.BeginInvoke((Action)delegate { if (!E.Learning) UpdateKeyStatus(); if (id == 4) UpdateTouchpadUi(); }); };
+            E.AnyKeyEvent += delegate(uint id, uint data) { Dispatcher.BeginInvoke((Action)delegate { if (!E.Learning) UpdateKeyStatus(); }); };
             sensors.Updated += delegate(SensorSnapshot snap) { Dispatcher.BeginInvoke((Action)delegate { OnSensors(snap); }); };
             Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerMode;
 
@@ -562,7 +558,7 @@ namespace Ohman {
             nav[0] = new NavBtn(0, "Home", new[] { ICO_HOME_RING }, new[] { ICO_HOME_DOT });
             nav[1] = new NavBtn(1, "Fans", new[] { ICO_FANS }, new string[0]);
             nav[2] = new NavBtn(2, "Keyboard", new[] { ICO_KBD }, new string[0]);
-            nav[3] = new NavBtn(3, "Input", new[] { ICO_INPUT }, new string[0]);
+            nav[3] = new NavBtn(3, "Keyboard Lock", new[] { ICO_KBD_LOCK }, new string[0]);
             nav[4] = new NavBtn(4, "Settings", new string[0], new[] { GearPath(12, 12, 10, 7.6, 8, 3.4) });
             for (int i = 0; i < 5; i++) { nav[i].HorizontalAlignment = HorizontalAlignment.Center; nav[i].Clicked += delegate(int idx) { Navigate((Page)idx, true); }; }
             host.Children.Add(nav[0]);
@@ -1162,7 +1158,7 @@ namespace Ohman {
                 txtMachine.Text = E.Hw.IsDemo && screenshotPath == null ? "simulated hardware" : (E.BiosOk ? "board " + E.Board : "firmware unavailable");
             }
             if (p == Page.Fans) RefreshFans(false);
-            if (p == Page.Input) { UpdateTouchpadUi(); UpdateKeyboardUi(); }
+            if (p == Page.Input) UpdateKeyboardUi();
             // the page has to be Visible before Morph measures it: a Collapsed element reports no desired size at all
             if (!live) ShowPage(page, true);
             else { page.BeginAnimation(UIElement.OpacityProperty, null); page.Opacity = 0; page.IsHitTestVisible = true; page.RenderTransform = null; page.Visibility = Visibility.Visible; }
@@ -2055,77 +2051,17 @@ namespace Ohman {
             return 0;
         }
 
-        // ---------- input controls (touchpad & keyboard) ----------
+        // ---------- keyboard lock controls ----------
         void BuildInput() {
-            badgeTouchpadStatus = F<Border>("BadgeTouchpadStatus");
-            btnToggleTouchpad = F<Border>("BtnToggleTouchpad");
-            txtTouchpadStatusBadge = F<TextBlock>("TxtTouchpadStatusBadge");
-            txtToggleTouchpadBtn = F<TextBlock>("TxtToggleTouchpadBtn");
             badgeKeyboardStatus = F<Border>("BadgeKeyboardStatus");
             btnToggleKeyboard = F<Border>("BtnToggleKeyboard");
             txtKeyboardStatusBadge = F<TextBlock>("TxtKeyboardStatusBadge");
             txtToggleKeyboardBtn = F<TextBlock>("TxtToggleKeyboardBtn");
             txtInputStatus = F<TextBlock>("TxtInputStatus");
 
-            if (btnToggleTouchpad != null) btnToggleTouchpad.MouseLeftButtonUp += delegate { ToggleTouchpad(); };
             if (btnToggleKeyboard != null) btnToggleKeyboard.MouseLeftButtonUp += delegate { SetKeyboardLocked(!keyboardLocked); };
 
-            UpdateTouchpadUi();
             UpdateKeyboardUi();
-        }
-
-        bool IsTouchpadHardwareEnabled() {
-            try {
-                uint inst, status, prob;
-                if (CM_Locate_DevNode(out inst, tpInstanceId, 0) == 0 &&
-                    CM_Get_DevNode_Status(out status, out prob, inst, 0) == 0) {
-                    return prob != 22; // 22 = CM_PROB_DISABLED
-                }
-            } catch { }
-            try {
-                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad\Status")) {
-                    if (k != null) {
-                        object val = k.GetValue("Enabled");
-                        if (val != null) return Convert.ToInt32(val) != 0;
-                    }
-                }
-            } catch { }
-            return true;
-        }
-
-        void SetTouchpadHardwareEnabled(bool on) {
-            try {
-                uint inst;
-                if (CM_Locate_DevNode(out inst, tpInstanceId, 0) == 0) {
-                    if (on) CM_Enable_DevNode(inst, 0);
-                    else CM_Disable_DevNode(inst, 0);
-                }
-            } catch { }
-            try {
-                using (var k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad\Status", true)) {
-                    if (k != null) k.SetValue("Enabled", on ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
-                }
-            } catch { }
-            UpdateTouchpadUi();
-        }
-
-        void ToggleTouchpad() {
-            bool current = IsTouchpadHardwareEnabled();
-            bool target = !current;
-            SetTouchpadHardwareEnabled(target);
-            ShowToast(target ? "Touchpad Enabled" : "Touchpad Disabled", false);
-        }
-
-        void UpdateTouchpadUi() {
-            if (txtTouchpadStatusBadge == null) return;
-            bool enabled = IsTouchpadHardwareEnabled();
-            txtTouchpadStatusBadge.Text = enabled ? "ENABLED" : "DISABLED";
-            txtTouchpadStatusBadge.Foreground = enabled ? Ui.Brush("#36D989") : Ui.Brush("#FF4D5A");
-            if (badgeTouchpadStatus != null) badgeTouchpadStatus.Background = enabled ? Ui.Brush("#1A36D989") : Ui.Brush("#1AFF4D5A");
-            if (txtToggleTouchpadBtn != null) txtToggleTouchpadBtn.Text = enabled ? "Disable Touchpad" : "Enable Touchpad";
-            if (txtInputStatus != null) {
-                txtInputStatus.Text = (enabled ? "touchpad on" : "touchpad off") + " · " + (keyboardLocked ? "keyboard locked" : "keyboard active");
-            }
         }
 
         void SetKeyboardLocked(bool locked) {
@@ -2141,8 +2077,7 @@ namespace Ohman {
             if (badgeKeyboardStatus != null) badgeKeyboardStatus.Background = keyboardLocked ? Ui.Brush("#1AFF4D5A") : Ui.Brush("#1A36D989");
             if (txtToggleKeyboardBtn != null) txtToggleKeyboardBtn.Text = keyboardLocked ? "Re-enable Keyboard" : "Disable Keyboard";
             if (txtInputStatus != null) {
-                bool tpOn = IsTouchpadHardwareEnabled();
-                txtInputStatus.Text = (tpOn ? "touchpad on" : "touchpad off") + " · " + (keyboardLocked ? "keyboard locked" : "keyboard active");
+                txtInputStatus.Text = keyboardLocked ? "keyboard locked" : "keyboard active";
             }
         }
 
@@ -2692,16 +2627,6 @@ namespace Ohman {
                     bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
                     if (ctrlDown && altDown) {
                         Dispatcher.BeginInvoke((Action)delegate { SetKeyboardLocked(!keyboardLocked); });
-                        return (IntPtr)1;
-                    }
-                }
-                if (vk == (uint)'T' && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
-                    bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-                    bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-                    bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                    bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-                    if (winDown && ctrlDown && !altDown && !shiftDown) {
-                        Dispatcher.BeginInvoke((Action)ToggleTouchpad);
                         return (IntPtr)1;
                     }
                 }

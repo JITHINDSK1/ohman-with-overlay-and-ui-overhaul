@@ -14,7 +14,7 @@ namespace Ohman {
         public string[] Boards;             // DMI baseboard product ids this profile applies to (Win32_BaseBoard.Product)
         public int ThermalPolicy = 1;       // expected byte 3 of system-design data (1 = modes 0x30/0x31/0x50)
         public byte ModeEco = 0x30, ModeBalanced = 0x30, ModePerformance = 0x31, ModeCool = 0x50;
-        public int TdpBase = 30, TdpGainMax = 45;   // concurrent CPU+GPU budget: base and the "Smart Performance Gain" range up to +45W Ultra Boost
+        public int TdpBase = 30, TdpGainMax = 15;   // concurrent CPU+GPU budget: base and the "Smart Performance Gain" range
         public byte[] GpuBase = { 0, 0, 1, 75 }, GpuBoost = { 0, 1, 1, 87 }, GpuMax = { 1, 1, 1, 87 };
         public uint KeyEventId = 29, KeyEventData = 8613;   // hpqBEvnt of the OMEN key
         // Features that not every OMEN has. A model without one keeps the row hidden and never sends the command.
@@ -208,7 +208,7 @@ namespace Ohman {
                 Boards = new[] { "8C58" },
                 ThermalPolicy = 1,
                 ModeEco = 0x30, ModeBalanced = 0x30, ModePerformance = 0x31, ModeCool = 0x50,
-                TdpBase = 30, TdpGainMax = 45,
+                TdpBase = 30, TdpGainMax = 15,
                 GpuBase = new byte[] { 0, 0, 1, 75 }, GpuBoost = new byte[] { 0, 1, 1, 87 }, GpuMax = new byte[] { 1, 1, 1, 87 },
                 KeyEventId = 29, KeyEventData = 8613,
                 RpmPerLevel = 100,

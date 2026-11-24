@@ -69,15 +69,9 @@ This fork transforms **Ohman** into a high-performance, everyday laptop companio
 - Click any individual key on the interactive UI keyboard to assign custom hex colors.
 - "Reset custom key colors" button to return to stock mode defaults in one click.
 
-### 5. Input Controls (Touchpad & Keyboard)
-- **Touchpad Controls**:
-  - Live hardware device detection (`ENABLED` / `DISABLED` status) via Device Manager PnP (`cfgmgr32`).
-  - Single-click manual enable/disable toggle.
-  - Full synchronization with laptop's native <kbd>Fn</kbd> + <kbd>F11</kbd> hardware shortcut (via `hpqBEvnt` ID 4).
-  - Global toggle shortcut: <kbd>Win</kbd> + <kbd>Ctrl</kbd> + <kbd>T</kbd>.
-  - PTP Architecture documentation on Windows multi-touch gesture boundaries and supported 4-finger alternatives.
-- **Keyboard Controls**:
-  - Soft-locking toggle to clean keyboard or prevent accidental keypresses.
+### 5. Keyboard Lock
+- **Built-in Laptop Keyboard Lock**:
+  - Soft-locking toggle to clean the keyboard or prevent accidental keypresses.
   - Safe low-level input filtering that keeps mice, touchpads, and recovery keys fully operational.
   - Emergency instant unlock shortcut: <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd>.
 
@@ -86,8 +80,6 @@ This fork transforms **Ohman** into a high-performance, everyday laptop companio
 | :--- | :--- |
 | <kbd>Win</kbd> + <kbd>O</kbd> | Cycle Modes (Quiet ➔ Balanced ➔ Performance ➔ EME) + Show HUD Overlay |
 | <kbd>Fn</kbd> + <kbd>Q</kbd> | Toggle 5700 RPM Max Fan Mode + Show HUD Overlay |
-| <kbd>Win</kbd> + <kbd>Ctrl</kbd> + <kbd>T</kbd> | Instant Touchpad Hardware Toggle |
-| <kbd>Fn</kbd> + <kbd>F11</kbd> | Dedicated Laptop Touchpad Hotkey (live synced) |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd> | Emergency Keyboard Lock/Unlock |
 | <kbd>Shift</kbd> + <kbd>F11</kbd> | Cycle Modes (legacy shortcut) |
 | <kbd>Esc</kbd> | Minimize to system tray (when app window is focused) |
