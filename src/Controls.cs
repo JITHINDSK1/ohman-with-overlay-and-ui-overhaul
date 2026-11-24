@@ -130,9 +130,10 @@ namespace Ohman {
             cells.SizeChanged += delegate { Place(false); };
         }
         public int Count { get { return items.Count; } }
+        public int Selected { get { return sel; } }
         public void SetMono(double size) { foreach (var tb in labels) { tb.FontFamily = Ui.MonoFont; tb.FontSize = size; } }
         /// <summary>A choice this hardware cannot make: dimmed, not clickable, with the reason on hover.</summary>
-        public void SetEnabled(int i, bool on, string why) {
+        public void SetEnabled(int i, bool on, string why = null) {
             enabled[i] = on;
             items[i].Opacity = on ? 1 : 0.3;
             items[i].Cursor = on ? Cursors.Hand : Cursors.Arrow;
@@ -182,9 +183,10 @@ namespace Ohman {
             }
             SizeChanged += delegate { Place(false); };
         }
+        public int Selected { get { return sel; } }
         public void SetText(int i, string t) { if (labels[i].Text != t) labels[i].Text = t; }
         /// <summary>Grey out a choice this machine cannot do, with the reason on the tooltip.</summary>
-        public void SetEnabled(int i, bool on, string why) {
+        public void SetEnabled(int i, bool on, string why = null) {
             off[i] = !on;
             labels[i].Opacity = on ? 1 : 0.35;
             labels[i].Cursor = on ? Cursors.Hand : Cursors.Arrow;

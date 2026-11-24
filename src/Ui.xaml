@@ -745,77 +745,179 @@
           <TextBlock Text="Keyboard" Style="{StaticResource Title}"/>
           <TextBlock x:Name="TxtKbdStatus" Style="{StaticResource Mono}" HorizontalAlignment="Right"/>
         </Grid>
-        <Border x:Name="KbdModeHost" Margin="0,24,0,0" HorizontalAlignment="Left"/>
 
-        <Grid x:Name="SelectRow" Margin="0,22,0,0">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="Select" Style="{StaticResource Row}" FontSize="13" Foreground="{StaticResource SegText}" Margin="0,0,10,0"/>
-            <Border x:Name="GranHost" VerticalAlignment="Center"/>
-          </StackPanel>
-          <TextBlock x:Name="TxtKeySel" Style="{StaticResource Mono}" Foreground="{StaticResource Desc}" HorizontalAlignment="Right" Text="Click the map to select"/>
-        </Grid>
+        <!-- Subtabs: Lighting / Remap Keys -->
+        <Border x:Name="KbdSubTabsHost" Margin="0,18,0,0" HorizontalAlignment="Left"/>
 
-        <Border x:Name="KbdHost" Margin="0,22,0,0"/>
+        <!-- Lighting Panel -->
+        <StackPanel x:Name="KbdLightingPanel">
+          <Border x:Name="KbdModeHost" Margin="0,18,0,0" HorizontalAlignment="Left"/>
 
-        <!-- the editor: colour for the per-zone modes, speed + brightness for the firmware effects -->
-        <Border x:Name="EditorRow" Margin="0,22,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,18,0,0">
-          <StackPanel>
-            <Grid x:Name="ColorEditor">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="176"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-              <!-- centred, so that with the brightness row gone (breathe puts it in the effect row below) the
-                   colour chip still sits level with the middle of the hue box instead of hanging off its top -->
-              <StackPanel VerticalAlignment="Center">
-                <Grid Height="34">
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                  <TextBlock Text="&#xE790;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource Status}" VerticalAlignment="Center" Margin="0,0,9,0" ToolTip="Colour"/>
-                  <Border Grid.Column="1" Height="34" Background="{StaticResource Well}" BorderBrush="{StaticResource Edge}" BorderThickness="1" ClipToBounds="True">
+          <Grid x:Name="SelectRow" Margin="0,20,0,0">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <TextBlock Text="Select" Style="{StaticResource Row}" FontSize="13" Foreground="{StaticResource SegText}" Margin="0,0,10,0"/>
+              <Border x:Name="GranHost" VerticalAlignment="Center"/>
+              <TextBlock x:Name="BtnResetKeyColors" Style="{StaticResource Link}" FontSize="11" Margin="14,0,0,0" VerticalAlignment="Center" Text="Reset per-key colors" ToolTip="Clear custom individual key colors and restore zone colors" Visibility="Collapsed"/>
+            </StackPanel>
+            <TextBlock x:Name="TxtKeySel" Style="{StaticResource Mono}" Foreground="{StaticResource Desc}" HorizontalAlignment="Right" Text="Click the map to select"/>
+          </Grid>
+
+          <Border x:Name="KbdHost" Margin="0,20,0,0"/>
+
+          <!-- the editor: colour for the per-zone modes, speed + brightness for the firmware effects -->
+          <Border x:Name="EditorRow" Margin="0,20,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,18,0,0">
+            <StackPanel>
+              <Grid x:Name="ColorEditor">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="176"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <!-- centred, so that with the brightness row gone (breathe puts it in the effect row below) the
+                     colour chip still sits level with the middle of the hue box instead of hanging off its top -->
+                <StackPanel VerticalAlignment="Center">
+                  <Grid Height="34">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE790;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource Status}" VerticalAlignment="Center" Margin="0,0,9,0" ToolTip="Colour"/>
+                    <Border Grid.Column="1" Height="34" Background="{StaticResource Well}" BorderBrush="{StaticResource Edge}" BorderThickness="1" ClipToBounds="True">
+                      <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="40"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <Border x:Name="HexChip" Background="#3F8CFF"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
+                          <TextBlock Text="#" FontFamily="{DynamicResource MonoFont}" FontSize="13.5" Foreground="#7E7976" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                          <TextBox x:Name="TxtHex" Style="{StaticResource Bare}" MaxLength="6" Width="70" VerticalAlignment="Center"/>
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </Grid>
+                  <Grid x:Name="LevelInline" Height="26" Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="&#xE706;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource Status}" VerticalAlignment="Center" Margin="0,0,9,0" ToolTip="Brightness"/>
+                    <Slider x:Name="SlLevel" Grid.Column="1" Style="{StaticResource Sl}" Minimum="5" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtLevel" Grid.Column="2" Style="{StaticResource Mono}" FontSize="11.5" Foreground="{StaticResource Hex}" Width="34" TextAlignment="Right"/>
+                  </Grid>
+                </StackPanel>
+                <Border Grid.Column="2" ClipToBounds="True" VerticalAlignment="Top">
+                  <StackPanel>
+                    <Border x:Name="HueHost" Height="33"/>
+                    <Border x:Name="ShadeHost" Height="33"/>
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <Grid x:Name="EffectEditor" Visibility="Collapsed">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                <Grid>
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <TextBlock Text="Speed" Style="{StaticResource Row}" FontSize="13"/>
+                  <Slider x:Name="SlSpeed" Grid.Column="1" Style="{StaticResource Sl}" Minimum="1" Maximum="5" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="12,0,12,0"/>
+                  <TextBlock x:Name="TxtSpeed" Grid.Column="2" Style="{StaticResource Mono}" FontSize="12.5" Foreground="{StaticResource Hex}" Width="32" TextAlignment="Right"/>
+                </Grid>
+                <Grid Grid.Column="2">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                  <TextBlock Text="Brightness" Style="{StaticResource Row}" FontSize="13"/>
+                  <Slider x:Name="SlLevel2" Grid.Column="1" Style="{StaticResource Sl}" Minimum="5" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" Margin="12,0,12,0"/>
+                  <TextBlock x:Name="TxtLevel2" Grid.Column="2" Style="{StaticResource Mono}" FontSize="12.5" Foreground="{StaticResource Hex}" Width="32" TextAlignment="Right"/>
+                </Grid>
+              </Grid>
+
+              <StackPanel x:Name="KbdInfo" Visibility="Collapsed">
+                <TextBlock x:Name="TxtKbdInfo" Style="{StaticResource Hint}"/>
+                <TextBlock x:Name="BtnWinLighting" Style="{StaticResource Link}" FontSize="13" Text="Open Windows lighting settings" HorizontalAlignment="Left" Margin="0,10,0,0" Visibility="Collapsed"/>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Remap Panel -->
+        <StackPanel x:Name="KbdRemapPanel" Visibility="Collapsed" Margin="0,18,0,0">
+          <!-- Master switch & status -->
+          <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="18,14">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
+                <TextBlock Text="Enable keyboard remapping" Style="{StaticResource Row}"/>
+                <TextBlock Text="Low-level hook remaps physical keystrokes in real time across Windows" Style="{StaticResource RowSub}"/>
+              </StackPanel>
+              <ToggleButton x:Name="TgRemapEnabled" Grid.Column="1" Style="{StaticResource Switch}"/>
+            </Grid>
+          </Border>
+
+          <!-- Quick Presets -->
+          <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="18,14" Margin="0,12,0,0">
+            <StackPanel>
+              <TextBlock Text="POPULAR PRESETS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,10"/>
+              <WrapPanel>
+                <Border x:Name="BtnPresetCapsCtrl" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="12,7" Cursor="Hand" Margin="0,0,8,8">
+                  <TextBlock Text="Caps Lock → Ctrl" FontSize="12" Foreground="{StaticResource Text}"/>
+                </Border>
+                <Border x:Name="BtnPresetCapsEsc" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="12,7" Cursor="Hand" Margin="0,0,8,8">
+                  <TextBlock Text="Caps Lock → Esc" FontSize="12" Foreground="{StaticResource Text}"/>
+                </Border>
+                <Border x:Name="BtnPresetSwapAltWin" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="12,7" Cursor="Hand" Margin="0,0,8,8">
+                  <TextBlock Text="Swap Alt ↔ Win" FontSize="12" Foreground="{StaticResource Text}"/>
+                </Border>
+                <Border x:Name="BtnPresetCapsBack" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="12,7" Cursor="Hand" Margin="0,0,8,8">
+                  <TextBlock Text="Caps Lock → Backspace" FontSize="12" Foreground="{StaticResource Text}"/>
+                </Border>
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Add New Remap Card -->
+          <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="18,14" Margin="0,12,0,0">
+            <StackPanel>
+              <TextBlock Text="ADD CUSTOM KEY REMAP" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <!-- Source Key Picker -->
+                <StackPanel Grid.Column="0">
+                  <TextBlock Text="Physical key to remap:" Style="{StaticResource Cap}" Margin="0,0,0,6"/>
+                  <Border x:Name="BtnDetectSrcKey" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Height="36" Cursor="Hand" Padding="12,0">
                     <Grid>
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="40"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                      <Border x:Name="HexChip" Background="#3F8CFF"/>
-                      <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0">
-                        <TextBlock Text="#" FontFamily="{DynamicResource MonoFont}" FontSize="13.5" Foreground="#7E7976" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBox x:Name="TxtHex" Style="{StaticResource Bare}" MaxLength="6" Width="70" VerticalAlignment="Center"/>
-                      </StackPanel>
+                      <TextBlock x:Name="TxtSrcKeyName" Text="Click &amp; press key..." Foreground="{StaticResource Desc}" FontSize="12.5" VerticalAlignment="Center"/>
                     </Grid>
                   </Border>
-                </Grid>
-                <Grid x:Name="LevelInline" Height="26" Margin="0,6,0,0">
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                  <TextBlock Text="&#xE706;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{StaticResource Status}" VerticalAlignment="Center" Margin="0,0,9,0" ToolTip="Brightness"/>
-                  <Slider x:Name="SlLevel" Grid.Column="1" Style="{StaticResource Sl}" Minimum="5" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center"/>
-                  <TextBlock x:Name="TxtLevel" Grid.Column="2" Style="{StaticResource Mono}" FontSize="11.5" Foreground="{StaticResource Hex}" Width="34" TextAlignment="Right"/>
-                </Grid>
-              </StackPanel>
-              <Border Grid.Column="2" ClipToBounds="True" VerticalAlignment="Top">
-                <StackPanel>
-                  <Border x:Name="HueHost" Height="33"/>
-                  <Border x:Name="ShadeHost" Height="33"/>
                 </StackPanel>
-              </Border>
-            </Grid>
 
-            <Grid x:Name="EffectEditor" Visibility="Collapsed">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="32"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-              <Grid>
-                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock Text="Speed" Style="{StaticResource Row}" FontSize="13"/>
-                <Slider x:Name="SlSpeed" Grid.Column="1" Style="{StaticResource Sl}" Minimum="1" Maximum="5" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" Margin="12,0,12,0"/>
-                <TextBlock x:Name="TxtSpeed" Grid.Column="2" Style="{StaticResource Mono}" FontSize="12.5" Foreground="{StaticResource Hex}" Width="32" TextAlignment="Right"/>
-              </Grid>
-              <Grid Grid.Column="2">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock Text="Brightness" Style="{StaticResource Row}" FontSize="13"/>
-                <Slider x:Name="SlLevel2" Grid.Column="1" Style="{StaticResource Sl}" Minimum="5" Maximum="100" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" Margin="12,0,12,0"/>
-                <TextBlock x:Name="TxtLevel2" Grid.Column="2" Style="{StaticResource Mono}" FontSize="12.5" Foreground="{StaticResource Hex}" Width="32" TextAlignment="Right"/>
-              </Grid>
-            </Grid>
+                <!-- Arrow -->
+                <TextBlock Grid.Column="1" Text="→" FontSize="18" Foreground="{StaticResource Desc}" VerticalAlignment="Center" Margin="14,18,14,0"/>
 
-            <StackPanel x:Name="KbdInfo" Visibility="Collapsed">
-              <TextBlock x:Name="TxtKbdInfo" Style="{StaticResource Hint}"/>
-              <TextBlock x:Name="BtnWinLighting" Style="{StaticResource Link}" FontSize="13" Text="Open Windows lighting settings" HorizontalAlignment="Left" Margin="0,10,0,0" Visibility="Collapsed"/>
+                <!-- Target Key Picker -->
+                <StackPanel Grid.Column="2">
+                  <TextBlock Text="Mapped output key:" Style="{StaticResource Cap}" Margin="0,0,0,6"/>
+                  <Border x:Name="BtnDetectDstKey" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Height="36" Cursor="Hand" Padding="12,0">
+                    <Grid>
+                      <TextBlock x:Name="TxtDstKeyName" Text="Click &amp; press key..." Foreground="{StaticResource Desc}" FontSize="12.5" VerticalAlignment="Center"/>
+                    </Grid>
+                  </Border>
+                </StackPanel>
+
+                <!-- Add Button -->
+                <Border x:Name="BtnAddRemap" Grid.Column="3" Background="#E32636" CornerRadius="6" Height="36" Padding="16,0" Margin="14,18,0,0" VerticalAlignment="Center" Cursor="Hand">
+                  <TextBlock Text="+ Add Remap" FontWeight="SemiBold" Foreground="White" FontSize="12.5" VerticalAlignment="Center"/>
+                </Border>
+              </Grid>
+              <TextBlock Text="Tip: Click a key on the map or click the box and press any key on your keyboard." Style="{StaticResource Hint}" Margin="0,8,0,0"/>
             </StackPanel>
-          </StackPanel>
-        </Border>
+          </Border>
+
+          <!-- Active Remaps List -->
+          <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="18,14" Margin="0,12,0,0">
+            <StackPanel>
+              <Grid Margin="0,0,0,10">
+                <TextBlock Text="ACTIVE KEY REMAPPINGS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock x:Name="BtnClearAllRemaps" Style="{StaticResource Link}" FontFamily="{DynamicResource MonoFont}" FontSize="11" HorizontalAlignment="Right" Text="Clear all" VerticalAlignment="Center"/>
+              </Grid>
+              <StackPanel x:Name="RemapListHost"/>
+              <TextBlock x:Name="TxtNoRemaps" Text="No custom key remaps active. Use the presets or custom tool above to remap any key." Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+            </StackPanel>
+          </Border>
+        </StackPanel>
       </StackPanel>
 
       <!-- ============ SETTINGS ============ -->
@@ -1033,150 +1135,6 @@
       </Grid>
       </Grid>
       </ScrollViewer>
-
-      <!-- ============ ACTIVITY MONITOR ============ -->
-      <Grid x:Name="PageActivity" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="*"/>
-          <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Header and Filter bar -->
-        <StackPanel Grid.Row="0">
-          <Grid x:Name="HeadActivity" Background="Transparent">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-              <TextBlock Text="Activity" Style="{StaticResource Title}"/>
-              <Border x:Name="AlertBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33E32636" Padding="6,2" VerticalAlignment="Center">
-                <TextBlock x:Name="AlertBadgeText" Text="0" FontSize="9.5" FontWeight="Bold" Foreground="#E32636" FontFamily="{DynamicResource UiFont}"/>
-              </Border>
-            </StackPanel>
-            <TextBlock x:Name="TxtActivityStatus" Style="{StaticResource Mono}" FontSize="12" HorizontalAlignment="Right" Text="Monitoring"/>
-          </Grid>
-
-          <!-- Filter bar -->
-          <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,20,0,0">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-              </Grid.ColumnDefinitions>
-              <Border x:Name="ProcFilterHost" HorizontalAlignment="Left"/>
-              <Border x:Name="ProcSearchHost" Grid.Column="1" Background="{StaticResource Sunken}" CornerRadius="6" Padding="8,4" VerticalAlignment="Center">
-                <TextBlock x:Name="TxtProcSearch" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="11" Text="Search processes..." Width="130"/>
-              </Border>
-            </Grid>
-          </Border>
-        </StackPanel>
-
-        <!-- Scrollable process lists and sections -->
-        <ScrollViewer x:Name="ActivityScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,12,0,0">
-          <StackPanel Margin="0,0,8,0">
-            <!-- Process list header -->
-            <Border Background="{StaticResource Sunken}" CornerRadius="8" Padding="12,8">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*"/>
-                  <ColumnDefinition Width="70"/>
-                  <ColumnDefinition Width="70"/>
-                  <ColumnDefinition Width="70"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="PROCESS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
-                <TextBlock Text="CPU %" Grid.Column="1" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                <TextBlock Text="RAM MB" Grid.Column="2" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-                <TextBlock Text="PID" Grid.Column="3" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" HorizontalAlignment="Right"/>
-              </Grid>
-            </Border>
-
-            <!-- Process rows container -->
-            <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Margin="0,4,0,0">
-              <StackPanel x:Name="ProcList" Margin="0,4,0,4"/>
-            </Border>
-
-            <!-- Terminated processes section -->
-            <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,12,0,0">
-              <StackPanel>
-                <TextBlock Text="RECENTLY ENDED" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                <StackPanel x:Name="TerminatedList"/>
-              </StackPanel>
-            </Border>
-          </StackPanel>
-        </ScrollViewer>
-
-        <!-- Footer -->
-        <Border Grid.Row="2" Margin="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
-          <TextBlock x:Name="TxtActivityFoot" Style="{StaticResource MonoFoot}" FontSize="11.5" Text="Polling every 3 seconds"/>
-        </Border>
-      </Grid>
-
-      <!-- ============ SECURITY MONITOR ============ -->
-      <Grid x:Name="PageSecurity" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="*"/>
-          <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Header -->
-        <Grid x:Name="HeadSecurity" Grid.Row="0" Background="Transparent">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock Text="Security" Style="{StaticResource Title}"/>
-            <Border x:Name="SecAlertBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33E32636" Padding="6,2" VerticalAlignment="Center">
-              <TextBlock x:Name="SecAlertBadgeText" Text="0" FontSize="9.5" FontWeight="Bold" Foreground="#E32636" FontFamily="{DynamicResource UiFont}"/>
-            </Border>
-          </StackPanel>
-          <TextBlock x:Name="TxtSecurityStatus" Style="{StaticResource Mono}" FontSize="12" HorizontalAlignment="Right" Text="Watching"/>
-        </Grid>
-
-        <!-- Scrollable content -->
-        <ScrollViewer x:Name="SecurityScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,16,0,0">
-          <StackPanel Margin="0,0,8,0">
-            <!-- Alert thresholds config -->
-            <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14">
-              <StackPanel>
-                <TextBlock Text="DETECTION THRESHOLDS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="52"/>
-                  </Grid.ColumnDefinitions>
-                  <TextBlock Text="CPU spike" Style="{StaticResource Row}" VerticalAlignment="Center" Width="100"/>
-                  <Slider x:Name="SlAlertCpu" Grid.Column="1" Style="{StaticResource Sl}" Minimum="30" Maximum="95" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" Margin="12,0,12,0"/>
-                  <TextBlock x:Name="TxtAlertCpu" Grid.Column="2" Style="{StaticResource MonoVal}" Text="60%"/>
-                </Grid>
-                <Grid Margin="0,16,0,0">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="52"/>
-                  </Grid.ColumnDefinitions>
-                  <TextBlock Text="RAM spike" Style="{StaticResource Row}" VerticalAlignment="Center" Width="100"/>
-                  <Slider x:Name="SlAlertRam" Grid.Column="1" Style="{StaticResource Sl}" Minimum="200" Maximum="4096" IsSnapToTickEnabled="True" TickFrequency="100" VerticalAlignment="Center" Margin="12,0,12,0"/>
-                  <TextBlock x:Name="TxtAlertRam" Grid.Column="2" Style="{StaticResource MonoVal}" Text="800 MB"/>
-                </Grid>
-              </StackPanel>
-            </Border>
-
-            <!-- Alert list section -->
-            <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="16,14" Margin="0,12,0,0">
-              <StackPanel>
-                <Grid Margin="0,0,0,10">
-                  <TextBlock Text="ALERTS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                  <TextBlock x:Name="BtnClearAlerts" Style="{StaticResource Link}" FontFamily="{DynamicResource MonoFont}" FontSize="11" HorizontalAlignment="Right" Text="Clear all" VerticalAlignment="Center"/>
-                </Grid>
-                <StackPanel x:Name="AlertList"/>
-                <TextBlock x:Name="TxtNoAlerts" Text="No alerts yet. Ohman watches for unusual CPU/RAM spikes and processes running from suspicious locations." Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-              </StackPanel>
-            </Border>
-          </StackPanel>
-        </ScrollViewer>
-
-        <!-- Footer -->
-        <Border Grid.Row="2" Margin="0,14,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
-          <TextBlock x:Name="TxtSecurityFoot" Style="{StaticResource MonoFoot}" FontSize="11.5" Text="Detection only · no automatic actions taken"/>
-        </Border>
-      </Grid>
 
       <!-- Legacy BtnClose hook kept invisible for code compatibility -->
       <Button x:Name="BtnClose" Visibility="Collapsed" IsHitTestVisible="False"/>

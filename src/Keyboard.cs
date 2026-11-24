@@ -155,6 +155,7 @@ namespace Ohman {
         public double Gap = 5, RowPitch = 39;                     // px between keys; vertical pitch per key row
         public readonly HashSet<int> Selected = new HashSet<int>();   // key indices being edited
         public readonly HashSet<int> Hover = new HashSet<int>();      // key indices in the group under the pointer
+        public readonly Dictionary<int, Rgb> KeyColors = new Dictionary<int, Rgb>(); // per-key custom color overrides
         public event Action<KeyDef> KeyClicked;
         public event Action<KeyDef> KeyHovered;                   // null when the pointer leaves the board
         Rgb[] shown = new Rgb[0], target = new Rgb[0];
@@ -223,6 +224,8 @@ namespace Ohman {
             return Color.FromRgb((byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t), (byte)(a.B + (b.B - a.B) * t));
         }
         Color ZoneColor(KeyDef k) {
+            Rgb custom;
+            if (KeyColors.TryGetValue(k.Index, out custom)) return ToColor(custom);
             if (shown.Length == 0) return OffCap;
             if (Smooth && shown.Length > 1) return SmoothColor(k);
             return ToColor(shown[Math.Min(shown.Length - 1, Math.Max(0, k.Zone))]);

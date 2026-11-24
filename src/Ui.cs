@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -29,7 +30,7 @@ namespace Ohman {
 
 
     public sealed class MainWindow : Window {
-        enum Page { Home = 0, Fans = 1, Keyboard = 2, Settings = 3, Activity = 4, Security = 5 }
+        enum Page { Home = 0, Fans = 1, Keyboard = 2, Settings = 3 }
         const double RailW = 62, PageW = 980, KbdPageW = 980, SettingsH = 720;
 
         Osd osd;
@@ -49,21 +50,18 @@ namespace Ohman {
         const string ICO_UPDATE = "M12 4 V14.2 M7.6 10.2 L12 14.8 L16.4 10.2 M4.6 19 H19.4";
         const string ICO_FANS = "M3 8.5 C5.5 5.5 8.5 11.5 12 8.5 C15.5 5.5 18.5 11.5 21 8.5 M3 15.5 C5.5 12.5 8.5 18.5 12 15.5 C15.5 12.5 18.5 18.5 21 15.5";
         const string ICO_KBD = "M2.5 7.5 A2 2 0 0 1 4.5 5.5 H19.5 A2 2 0 0 1 21.5 7.5 V16.5 A2 2 0 0 1 19.5 18.5 H4.5 A2 2 0 0 1 2.5 16.5 Z M6 9.5 H6.4 M9.8 9.5 H10.2 M13.6 9.5 H14 M17.4 9.5 H17.8 M6 12.5 H6.4 M9.8 12.5 H10.2 M13.6 12.5 H14 M17.4 12.5 H17.8 M7.5 15.5 H16.5";
-        const string ICO_ACTIVITY = "M2 13 H6 L9 5 L14 19 L17 11 L19 13 H22";
-        const string ICO_SECURITY = "M12 3 L4 6 V12 C4 17 8 20.5 12 22 C16 20.5 20 17 20 12 V6 Z";
 
         readonly Engine E;
         readonly Sensors sensors;
-        readonly ProcessMonitor procMon;
         readonly string screenshotPath;
         readonly bool openSettings;
         FrameworkElement root;
         Grid pageHost;
         ScrollViewer scroll;
-        readonly FrameworkElement[] pages = new FrameworkElement[6];
+        readonly FrameworkElement[] pages = new FrameworkElement[4];
         Page cur = Page.Home;
         bool pageShown;
-        readonly NavBtn[] nav = new NavBtn[6];
+        readonly NavBtn[] nav = new NavBtn[4];
         Border railPill;
         TranslateTransform railPillT;
         Canvas railCanvas;
@@ -71,21 +69,18 @@ namespace Ohman {
         StackPanel navBottom;
         ColorSource accentSrc;
         SolidColorBrush accent;
-        // activity
-        TextBlock txtActivityStatus, txtActivityFoot, txtProcSearch;
-        Border alertBadge, procSearchHost;
-        TextBlock alertBadgeText;
-        StackPanel procList, terminatedList;
-        Seg procFilterSeg;
-        int procFilterMode = 0;
-        string procSearchQuery = "";
-        DispatcherTimer procRefreshTimer;
-        // security
-        TextBlock txtSecurityStatus, txtSecurityFoot, txtAlertCpu, txtAlertRam, btnClearAlerts, txtNoAlerts;
-        Border secAlertBadge;
-        TextBlock secAlertBadgeText;
-        Slider slAlertCpu, slAlertRam;
-        StackPanel alertList;
+        int memTrimTicks = 0;
+        // keyboard remapping
+        Dictionary<uint, uint> remapTable = new Dictionary<uint, uint>();
+        bool capturingSrc, capturingDst;
+        uint selectedSrcVk, selectedDstVk;
+        Seg kbdSubTabsSeg;
+        FrameworkElement kbdLightingPanel, kbdRemapPanel;
+        ToggleButton tgRemapEnabled;
+        Border btnPresetCapsCtrl, btnPresetCapsEsc, btnPresetSwapAltWin, btnPresetCapsBack;
+        Border btnDetectSrcKey, btnDetectDstKey, btnAddRemap;
+        TextBlock txtSrcKeyName, txtDstKeyName, txtNoRemaps, btnClearAllRemaps, btnResetKeyColors;
+        StackPanel remapListHost;
         // home
         TextBlock txtHomeTitle, txtHomeStatus, subCpu, subGpu, txtPower, txtFoot, txtFootRight, txtLightSub, txtErr, txtInfo, btnSupport, btnReset;
         Run bigCpu, bigGpu, bigFan1, bigFan2, bigRamUsed, bigRamTotal, bigVramUsed, bigVramTotal;
@@ -149,7 +144,6 @@ namespace Ohman {
         readonly BitmapSource[] appIcons = new BitmapSource[4];
         Border emeBadge, emeFanBadge, batteryFanBanner;
         TextBlock txtBatteryFanBanner, txtTableMaxNote;
-        ScrollViewer activityScroll, securityScroll;
         bool syncing, exiting, reading, autostart;
         int shownMode = -1, lastBiosTemp = -1;
         int[] lastFans;
@@ -192,10 +186,21 @@ namespace Ohman {
         [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hhk);
         [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vKey);
+        [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, IntPtr dwExtraInfo);
         [DllImport("kernel32.dll")] static extern IntPtr GetModuleHandle(string lpModuleName);
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr wp, IntPtr lp);
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+        [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr h, IntPtr min, IntPtr max);
+
+        public static void TrimMemory() {
+            try {
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                SetProcessWorkingSetSize(Process.GetCurrentProcess().Handle, new IntPtr(-1), new IntPtr(-1));
+            } catch { }
+        }
 
         public MainWindow(Engine engine, Sensors s, string screenshot, bool settingsOpen)
             : this(engine, s, null, screenshot, settingsOpen) { }
@@ -203,7 +208,6 @@ namespace Ohman {
         public MainWindow(Engine engine, Sensors s, ProcessMonitor pm, string screenshot, bool settingsOpen) {
             E = engine;
             sensors = s;
-            procMon = pm ?? new ProcessMonitor();
             screenshotPath = screenshot;
             openSettings = settingsOpen;
             Ui.LoadFonts();
@@ -232,9 +236,8 @@ namespace Ohman {
             BuildHome();
             BuildFans();
             BuildKeyboard();
+            BuildRemap();
             BuildSettings();
-            BuildActivity();
-            BuildSecurity();
             BuildIcons();
             BuildTray();
             Wire();
@@ -278,14 +281,14 @@ namespace Ohman {
                         if (E.S.Fan == FanMode.Max) UpdateMaxBlock();
                         if (E.S.Fan == FanMode.Turbo6200) UpdateTurbo6200Block();
                     }
+                } else if (++memTrimTicks >= 30) {
+                    memTrimTicks = 0;
+                    TrimMemory();
                 }
             };
             PollRate();
             UpdateOverlay();
             Refresh();
-            procRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            procRefreshTimer.Tick += delegate { if (IsVisible && cur == Page.Activity) RefreshActivity(); UpdateAlertBadges(); };
-            procRefreshTimer.Start();
             if (!E.BiosOk && !E.Hw.IsDemo) ShowToast("BIOS interface unavailable: " + E.LastError, true);
             else if (E.LastError.Length > 0) ShowToast(E.LastError, true);      // a write already failed during Init, before this handler existed
             QueryAutostartAsync();
@@ -322,27 +325,6 @@ namespace Ohman {
             pages[1] = F<FrameworkElement>("PageFans");
             pages[2] = F<FrameworkElement>("PageKbd");
             pages[3] = F<FrameworkElement>("PageSettings");
-            pages[4] = F<FrameworkElement>("PageActivity");
-            pages[5] = F<FrameworkElement>("PageSecurity");
-            alertBadge = F<Border>("AlertBadge");
-            alertBadgeText = F<TextBlock>("AlertBadgeText");
-            txtActivityStatus = F<TextBlock>("TxtActivityStatus");
-            procSearchHost = F<Border>("ProcSearchHost");
-            txtProcSearch = F<TextBlock>("TxtProcSearch");
-            procList = F<StackPanel>("ProcList");
-            terminatedList = F<StackPanel>("TerminatedList");
-            txtActivityFoot = F<TextBlock>("TxtActivityFoot");
-            secAlertBadge = F<Border>("SecAlertBadge");
-            secAlertBadgeText = F<TextBlock>("SecAlertBadgeText");
-            txtSecurityStatus = F<TextBlock>("TxtSecurityStatus");
-            slAlertCpu = F<Slider>("SlAlertCpu");
-            txtAlertCpu = F<TextBlock>("TxtAlertCpu");
-            slAlertRam = F<Slider>("SlAlertRam");
-            txtAlertRam = F<TextBlock>("TxtAlertRam");
-            alertList = F<StackPanel>("AlertList");
-            btnClearAlerts = F<TextBlock>("BtnClearAlerts");
-            txtNoAlerts = F<TextBlock>("TxtNoAlerts");
-            txtSecurityFoot = F<TextBlock>("TxtSecurityFoot");
             txtHomeTitle = F<TextBlock>("TxtHomeTitle");
             txtHomeStatus = F<TextBlock>("TxtHomeStatus");
             demoBadge = F<FrameworkElement>("DemoBadge");
@@ -351,8 +333,6 @@ namespace Ohman {
             batteryFanBanner = F<Border>("BatteryFanBanner");
             txtBatteryFanBanner = F<TextBlock>("TxtBatteryFanBanner");
             txtTableMaxNote = F<TextBlock>("TxtTableMaxNote");
-            activityScroll = F<ScrollViewer>("ActivityScroll");
-            securityScroll = F<ScrollViewer>("SecurityScroll");
             errBanner = F<FrameworkElement>("ErrBanner");
             txtErr = F<TextBlock>("TxtErr");
             infoBanner = F<FrameworkElement>("InfoBanner");
@@ -568,14 +548,10 @@ namespace Ohman {
             nav[1] = new NavBtn(1, "Fans", new[] { ICO_FANS }, new string[0]);
             nav[2] = new NavBtn(2, "Keyboard", new[] { ICO_KBD }, new string[0]);
             nav[3] = new NavBtn(3, "Settings", new string[0], new[] { GearPath(12, 12, 10, 7.6, 8, 3.4) });
-            nav[4] = new NavBtn(4, "Activity", new[] { ICO_ACTIVITY }, new string[0]);
-            nav[5] = new NavBtn(5, "Security", new[] { ICO_SECURITY }, new string[0]);
-            for (int i = 0; i < 6; i++) { nav[i].HorizontalAlignment = HorizontalAlignment.Center; nav[i].Clicked += delegate(int idx) { Navigate((Page)idx, true); }; }
+            for (int i = 0; i < 4; i++) { nav[i].HorizontalAlignment = HorizontalAlignment.Center; nav[i].Clicked += delegate(int idx) { Navigate((Page)idx, true); }; }
             host.Children.Add(nav[0]);
             host.Children.Add(nav[1]);
             host.Children.Add(nav[2]);
-            host.Children.Add(nav[4]);
-            host.Children.Add(nav[5]);
             // Above Settings, and only while there is something to install. It is a signpost rather than a page:
             // it goes where the update lives instead of doing anything itself, so nothing is one stray click from
             // restarting the app. It stays out of nav[] deliberately -- the rail pill tracks the current page, and
@@ -587,7 +563,6 @@ namespace Ohman {
             navUpdate.Clicked += delegate { ShowUpdateRow(); };
             bottom.Children.Add(navUpdate);
             bottom.Children.Add(nav[3]);
-            if (E.Light == null) nav[2].Visibility = Visibility.Collapsed;
             logoHost.MouseLeftButtonDown += delegate(object o, MouseButtonEventArgs e) { e.Handled = true; Navigate(Page.Home, true); };
             rail.MouseLeftButtonDown += delegate(object o, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) Drag(); };
             rail.SizeChanged += delegate { if (!morphing) PlaceRailPill(false); };   // the morph moves the rail every frame; the pill is aimed at the end position instead
@@ -1129,7 +1104,7 @@ namespace Ohman {
         }
 
         void Wire() {
-            foreach (string n in new[] { "HeadHome", "HeadFans", "HeadKbd", "HeadSettings", "HeadActivity", "HeadSecurity", "DragStrip", "TitleBar" })
+            foreach (string n in new[] { "HeadHome", "HeadFans", "HeadKbd", "HeadSettings", "DragStrip", "TitleBar" })
                 F<FrameworkElement>(n).MouseLeftButtonDown += delegate(object o, MouseButtonEventArgs me) {
                     if (me.ClickCount == 2) {
                         ToggleMaximize();
@@ -1170,8 +1145,6 @@ namespace Ohman {
                 txtMachine.Text = E.Hw.IsDemo && screenshotPath == null ? "simulated hardware" : (E.BiosOk ? "board " + E.Board : "firmware unavailable");
             }
             if (p == Page.Fans) RefreshFans(false);
-            if (p == Page.Activity) RefreshActivity();
-            if (p == Page.Security) RefreshSecurity();
             // the page has to be Visible before Morph measures it: a Collapsed element reports no desired size at all
             if (!live) ShowPage(page, true);
             else { page.BeginAnimation(UIElement.OpacityProperty, null); page.Opacity = 0; page.IsHitTestVisible = true; page.RenderTransform = null; page.Visibility = Visibility.Visible; }
@@ -1285,7 +1258,6 @@ namespace Ohman {
         /// current page counts: the outgoing one is still in the host while it fades.</summary>
         double NaturalHeight() {
             if (cur == Page.Settings) return SettingsH;
-            if (cur == Page.Activity || cur == Page.Security) return 720;
             var page = pages[(int)cur];
             if (page == null || pageHost.Width <= 0) return 0;
             page.Measure(new Size(pageHost.Width, double.PositiveInfinity));
@@ -1352,7 +1324,29 @@ namespace Ohman {
             if (E.Light == null) return;
             var layout = BuildLayout();
             kbdBig = new KeyboardView { Interactive = true, Gap = 5, RowPitch = 39 }; kbdBig.SetLayout(layout); kbdHost.Child = kbdBig;
-            kbdBig.KeyClicked += delegate(KeyDef k) { if (k != null) SelectGroup(k); };
+            kbdBig.KeyClicked += delegate(KeyDef k) {
+                if (k == null) return;
+                if (kbdSubTabsSeg != null && kbdSubTabsSeg.Selected == 1) {
+                    uint vk = VkFromKeyDef(k);
+                    if (vk != 0) {
+                        if (selectedSrcVk == 0 || capturingSrc) {
+                            selectedSrcVk = vk;
+                            capturingSrc = false;
+                            txtSrcKeyName.Text = KeyName(vk);
+                            txtSrcKeyName.Foreground = (Brush)FindResource("TextHi");
+                            ShowToast("Selected " + KeyName(vk) + " as source key", false);
+                        } else {
+                            selectedDstVk = vk;
+                            capturingDst = false;
+                            txtDstKeyName.Text = KeyName(vk);
+                            txtDstKeyName.Foreground = (Brush)FindResource("TextHi");
+                            ShowToast("Selected " + KeyName(vk) + " as target key", false);
+                        }
+                    }
+                    return;
+                }
+                SelectGroup(k);
+            };
             kbdBig.KeyHovered += delegate(KeyDef k) {
                 kbdBig.Hover.Clear();
                 if (k != null) foreach (int i in Group(k)) kbdBig.Hover.Add(i);
@@ -1369,14 +1363,15 @@ namespace Ohman {
                 ApplyEditorState();
                 Bg(delegate { E.SetLight(m, fx, false); });
             };
-            // what one click takes. Key and Row need per-key hardware; the firmware's zone table cannot address one key.
+            // what one click takes: Key, Row, Zone, All are all unlocked for per-key customization
             granSeg = new Seg(new[] { "Key", "Row", "Zone", "All" }, null, null, Seg.Kind.Row);
             F<Border>("GranHost").Child = granSeg;
-            bool perKey = E.Light.Kind == LightKind.PerKey && E.Light.Zones > 4;
-            granSeg.SetEnabled(0, perKey, "This keyboard lights in zones, not per key");
-            granSeg.SetEnabled(1, perKey, "This keyboard lights in zones, not per key");
-            gran = perKey ? "Key" : "Zone";
-            granSeg.Select(perKey ? 0 : 2, false);
+            granSeg.SetEnabled(0, true);
+            granSeg.SetEnabled(1, true);
+            granSeg.SetEnabled(2, true);
+            granSeg.SetEnabled(3, true);
+            gran = "Key";
+            granSeg.Select(0, false);
             granSeg.Picked += delegate(int i) { gran = new[] { "Key", "Row", "Zone", "All" }[i]; kbdBig.Selected.Clear(); kbdBig.Hover.Clear(); kbdBig.Repaint(); UpdateSelectionText(); };
             hueBar = new StripPicker { Cells = 36 }; F<Border>("HueHost").Child = hueBar;
             shadeBar = new StripPicker { Cells = 30, Shade = true }; F<Border>("ShadeHost").Child = shadeBar;
@@ -1451,6 +1446,12 @@ namespace Ohman {
         void Paint(Rgb c, bool fromHex) {
             if (kbdBig.Selected.Count == 0) { foreach (var k in kbdBig.Keys) kbdBig.Selected.Add(k.Index); UpdateSelectionText(); }
             curColor = c;
+            foreach (int idx in kbdBig.Selected) {
+                kbdBig.KeyColors[idx] = c;
+                if (kbdMini != null) kbdMini.KeyColors[idx] = c;
+            }
+            SavePerKeyColors();
+            if (btnResetKeyColors != null) btnResetKeyColors.Visibility = Visibility.Visible;
             foreach (int z in SelectedZones()) if (z < E.LightColors.Length) E.LightColors[z] = c;
             kbdBig.SetColors(E.LightColors, false);
             kbdMini.SetColors(E.LightColors, false);
@@ -1724,300 +1725,314 @@ namespace Ohman {
             return E.P.RpmPerLevel > 0 ? (level * E.P.RpmPerLevel).ToString(CultureInfo.InvariantCulture) : E.Percent(level).TrimEnd('%');
         }
 
-        // ---------- activity & security monitor ----------
-        void BuildActivity() {
-            procFilterSeg = new Seg(new[] { "All", "High CPU", "High RAM", "Suspicious" }, null, null, Seg.Kind.Compact);
-            F<Border>("ProcFilterHost").Child = procFilterSeg;
-            procFilterSeg.Picked += delegate(int i) {
-                procFilterMode = i;
-                RefreshActivity();
+        // ---------- keyboard remapping & per-key lighting ----------
+
+        void LoadPerKeyColors() {
+            if (kbdBig == null) return;
+            kbdBig.KeyColors.Clear();
+            if (kbdMini != null) kbdMini.KeyColors.Clear();
+            if (string.IsNullOrEmpty(E.S.PerKeyColors)) {
+                if (btnResetKeyColors != null) btnResetKeyColors.Visibility = Visibility.Collapsed;
+                return;
+            }
+            string[] pairs = E.S.PerKeyColors.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string p in pairs) {
+                string[] parts = p.Split(':');
+                if (parts.Length == 2) {
+                    int idx;
+                    Rgb rgb;
+                    if (int.TryParse(parts[0], out idx) && Rgb.TryParse(parts[1], out rgb)) {
+                        kbdBig.KeyColors[idx] = rgb;
+                        if (kbdMini != null) kbdMini.KeyColors[idx] = rgb;
+                    }
+                }
+            }
+            if (btnResetKeyColors != null) btnResetKeyColors.Visibility = kbdBig.KeyColors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        void SavePerKeyColors() {
+            if (kbdBig == null) return;
+            var sb = new StringBuilder();
+            foreach (var kvp in kbdBig.KeyColors) {
+                if (sb.Length > 0) sb.Append(",");
+                sb.Append(kvp.Key).Append(":").Append(kvp.Value.Hex);
+            }
+            E.S.PerKeyColors = sb.ToString();
+            E.S.Save();
+        }
+
+        void ResetPerKeyColors() {
+            if (kbdBig != null) kbdBig.KeyColors.Clear();
+            if (kbdMini != null) kbdMini.KeyColors.Clear();
+            E.S.PerKeyColors = "";
+            E.S.Save();
+            if (btnResetKeyColors != null) btnResetKeyColors.Visibility = Visibility.Collapsed;
+            if (kbdBig != null) kbdBig.Repaint();
+            if (kbdMini != null) kbdMini.Repaint();
+            ShowToast("Per-key custom colors reset to zone colors", false);
+        }
+
+        void BuildRemap() {
+            kbdLightingPanel = F<FrameworkElement>("KbdLightingPanel");
+            kbdRemapPanel = F<FrameworkElement>("KbdRemapPanel");
+            btnResetKeyColors = F<TextBlock>("BtnResetKeyColors");
+            btnResetKeyColors.MouseLeftButtonUp += delegate { ResetPerKeyColors(); };
+
+            kbdSubTabsSeg = new Seg(new[] { "Lighting", "Remap Keys" }, null, null, Seg.Kind.Compact);
+            F<Border>("KbdSubTabsHost").Child = kbdSubTabsSeg;
+            kbdSubTabsSeg.Select(0, false);
+            kbdSubTabsSeg.Picked += delegate(int i) {
+                kbdLightingPanel.Visibility = i == 0 ? Visibility.Visible : Visibility.Collapsed;
+                kbdRemapPanel.Visibility = i == 1 ? Visibility.Visible : Visibility.Collapsed;
+                Morph(false);
             };
-            if (procMon != null) {
-                procMon.Updated += delegate(List<ProcessInfo> snap, List<ActivityAlert> newAlerts) {
-                    Dispatcher.BeginInvoke((Action)delegate {
-                        UpdateAlertBadges();
-                        if (cur == Page.Activity && IsVisible) RefreshActivity();
-                        if (cur == Page.Security && IsVisible) RefreshSecurity();
-                    });
-                };
+
+            tgRemapEnabled = F<ToggleButton>("TgRemapEnabled");
+            tgRemapEnabled.IsChecked = E.S.KeyRemapEnabled;
+            tgRemapEnabled.Click += delegate {
+                E.S.KeyRemapEnabled = tgRemapEnabled.IsChecked == true;
+                E.S.Save();
+                ShowToast("Keyboard remapping " + (E.S.KeyRemapEnabled ? "enabled" : "disabled"), false);
+            };
+
+            btnPresetCapsCtrl = F<Border>("BtnPresetCapsCtrl");
+            btnPresetCapsEsc = F<Border>("BtnPresetCapsEsc");
+            btnPresetSwapAltWin = F<Border>("BtnPresetSwapAltWin");
+            btnPresetCapsBack = F<Border>("BtnPresetCapsBack");
+
+            btnPresetCapsCtrl.MouseLeftButtonUp += delegate { AddRemap(0x14, 0xA2); };
+            btnPresetCapsEsc.MouseLeftButtonUp += delegate { AddRemap(0x14, 0x1B); };
+            btnPresetSwapAltWin.MouseLeftButtonUp += delegate { AddRemap(0xA4, 0x5B); AddRemap(0x5B, 0xA4); };
+            btnPresetCapsBack.MouseLeftButtonUp += delegate { AddRemap(0x14, 0x08); };
+
+            btnDetectSrcKey = F<Border>("BtnDetectSrcKey");
+            btnDetectDstKey = F<Border>("BtnDetectDstKey");
+            btnAddRemap = F<Border>("BtnAddRemap");
+            txtSrcKeyName = F<TextBlock>("TxtSrcKeyName");
+            txtDstKeyName = F<TextBlock>("TxtDstKeyName");
+            txtNoRemaps = F<TextBlock>("TxtNoRemaps");
+            btnClearAllRemaps = F<TextBlock>("BtnClearAllRemaps");
+            remapListHost = F<StackPanel>("RemapListHost");
+
+            btnDetectSrcKey.MouseLeftButtonUp += delegate {
+                capturingSrc = true;
+                capturingDst = false;
+                txtSrcKeyName.Text = "Press any key...";
+                txtSrcKeyName.Foreground = accent;
+            };
+
+            btnDetectDstKey.MouseLeftButtonUp += delegate {
+                capturingDst = true;
+                capturingSrc = false;
+                txtDstKeyName.Text = "Press any key...";
+                txtDstKeyName.Foreground = accent;
+            };
+
+            btnAddRemap.MouseLeftButtonUp += delegate {
+                if (selectedSrcVk == 0 || selectedDstVk == 0) {
+                    ShowToast("Please select both a source key and a target key", true);
+                    return;
+                }
+                if (selectedSrcVk == selectedDstVk) {
+                    ShowToast("Source and target key cannot be the same", true);
+                    return;
+                }
+                AddRemap(selectedSrcVk, selectedDstVk);
+                selectedSrcVk = 0;
+                selectedDstVk = 0;
+                txtSrcKeyName.Text = "Click & press key...";
+                txtSrcKeyName.Foreground = (Brush)FindResource("Desc");
+                txtDstKeyName.Text = "Click & press key...";
+                txtDstKeyName.Foreground = (Brush)FindResource("Desc");
+            };
+
+            btnClearAllRemaps.MouseLeftButtonUp += delegate {
+                remapTable.Clear();
+                SaveRemaps();
+                RefreshRemapList();
+                ShowToast("All key remaps cleared", false);
+            };
+
+            LoadRemaps();
+            RefreshRemapList();
+            LoadPerKeyColors();
+        }
+
+        void LoadRemaps() {
+            remapTable.Clear();
+            if (string.IsNullOrEmpty(E.S.KeyRemaps)) return;
+            string[] pairs = E.S.KeyRemaps.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string p in pairs) {
+                string[] parts = p.Split(':');
+                if (parts.Length == 2) {
+                    uint src, dst;
+                    if (uint.TryParse(parts[0], out src) && uint.TryParse(parts[1], out dst)) {
+                        remapTable[src] = dst;
+                    }
+                }
             }
         }
 
-        void RefreshActivity() {
-            if (procList == null || procMon == null) return;
-            procList.Children.Clear();
-            var all = procMon.Current();
-            var filtered = new List<ProcessInfo>();
-
-            for (int i = 0; i < all.Count; i++) {
-                var p = all[i];
-                if (procFilterMode == 1 && p.CpuPct < 5.0) continue;
-                if (procFilterMode == 2 && p.RamMb < 100) continue;
-                if (procFilterMode == 3 && !p.InTempDir && (p.IsSystemProcess || (p.CpuPct < 30 && p.RamMb < 1024))) continue;
-                filtered.Add(p);
+        void SaveRemaps() {
+            var sb = new StringBuilder();
+            foreach (var kvp in remapTable) {
+                if (sb.Length > 0) sb.Append(",");
+                sb.Append(kvp.Key).Append(":").Append(kvp.Value);
             }
+            E.S.KeyRemaps = sb.ToString();
+            E.S.Save();
+        }
 
-            if (procFilterMode == 2) {
-                filtered.Sort(delegate(ProcessInfo a, ProcessInfo b) { return b.RamMb.CompareTo(a.RamMb); });
-            } else {
-                filtered.Sort(delegate(ProcessInfo a, ProcessInfo b) { return b.CpuPct.CompareTo(a.CpuPct); });
+        void AddRemap(uint src, uint dst) {
+            remapTable[src] = dst;
+            SaveRemaps();
+            RefreshRemapList();
+            ShowToast("Remapped " + KeyName(src) + " ➜ " + KeyName(dst), false);
+        }
+
+        void RemoveRemap(uint src) {
+            if (remapTable.ContainsKey(src)) {
+                remapTable.Remove(src);
+                SaveRemaps();
+                RefreshRemapList();
+                ShowToast("Removed remap rule", false);
             }
+        }
 
-            int count = 0;
-            for (int i = 0; i < filtered.Count; i++) {
-                if (count++ >= 100) break;
-                var p = filtered[i];
+        void RefreshRemapList() {
+            if (remapListHost == null) return;
+            remapListHost.Children.Clear();
+            bool hasAny = remapTable.Count > 0;
+            if (txtNoRemaps != null) txtNoRemaps.Visibility = hasAny ? Visibility.Collapsed : Visibility.Visible;
+            if (btnClearAllRemaps != null) btnClearAllRemaps.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
 
-                var row = new Border {
-                    Background = Ui.Sunken,
+            foreach (var kvp in remapTable) {
+                uint src = kvp.Key;
+                uint dst = kvp.Value;
+                Border row = new Border {
+                    Background = (Brush)FindResource("Sunken"),
                     CornerRadius = new CornerRadius(6),
-                    Margin = new Thickness(6, 2, 6, 2),
-                    Padding = new Thickness(12, 8, 12, 8)
+                    Margin = new Thickness(0, 3, 0, 3),
+                    Padding = new Thickness(14, 9, 14, 9)
                 };
-                var g = new Grid();
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(70) });
-
-                var nameSp = new StackPanel();
-                var txtName = new TextBlock {
-                    Text = p.Name,
-                    FontFamily = Ui.UiFont,
-                    FontSize = 12.5,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = Ui.TextHi
-                };
-                string sub = p.Publisher.Length > 0 ? p.Publisher : (p.SafeDir.Length > 0 ? p.SafeDir : (p.IsSystemProcess ? "Windows system" : ""));
-                if (sub.Length > 45) sub = sub.Substring(0, 45) + "...";
-                var txtSub = new TextBlock {
-                    Text = sub,
-                    FontFamily = Ui.UiFont,
-                    FontSize = 10,
-                    Foreground = Ui.Sub,
-                    Margin = new Thickness(0, 1, 0, 0)
-                };
-                nameSp.Children.Add(txtName);
-                if (sub.Length > 0) nameSp.Children.Add(txtSub);
-
-                var txtCpu = new TextBlock {
-                    Text = p.CpuPct >= 0.1 ? p.CpuPct.ToString("0.0", CultureInfo.InvariantCulture) + "%" : "0%",
-                    FontFamily = Ui.MonoFont,
-                    FontSize = 12,
-                    Foreground = p.CpuPct >= 50 ? Ui.Brush(Ui.Danger) : p.CpuPct >= 20 ? Ui.Brush(Ui.Warn) : Ui.TextB,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                Grid.SetColumn(txtCpu, 1);
-
-                var txtRam = new TextBlock {
-                    Text = p.RamMb.ToString(CultureInfo.InvariantCulture) + " MB",
-                    FontFamily = Ui.MonoFont,
-                    FontSize = 12,
-                    Foreground = p.RamMb >= 2048 ? Ui.Brush(Ui.Warn) : Ui.TextB,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                Grid.SetColumn(txtRam, 2);
-
-                var txtPid = new TextBlock {
-                    Text = p.Pid.ToString(CultureInfo.InvariantCulture),
-                    FontFamily = Ui.MonoFont,
-                    FontSize = 11,
-                    Foreground = Ui.Sub,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                Grid.SetColumn(txtPid, 3);
-
-                g.Children.Add(nameSp);
-                g.Children.Add(txtCpu);
-                g.Children.Add(txtRam);
-                g.Children.Add(txtPid);
-                row.Child = g;
-                procList.Children.Add(row);
-            }
-
-            if (count == 0) {
-                procList.Children.Add(new TextBlock {
-                    Text = "No processes match the current filter",
-                    Style = (Style)root.Resources["Hint"],
-                    Margin = new Thickness(14, 12, 14, 12)
-                });
-            }
-
-            if (terminatedList != null) {
-                terminatedList.Children.Clear();
-                var hist = procMon.History();
-                int hCount = 0;
-                for (int i = 0; i < hist.Count; i++) {
-                    if (hCount++ >= 30) break;
-                    var p = hist[i];
-                    var hRow = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-                    hRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    hRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-                    var tName = new TextBlock {
-                        Text = p.Name + " (" + p.Pid + ")",
-                        FontFamily = Ui.UiFont,
-                        FontSize = 11.5,
-                        Foreground = Ui.Desc,
-                        VerticalAlignment = VerticalAlignment.Center
-                    };
-                    string dur = p.EndTime != DateTime.MinValue && p.StartTime != DateTime.MinValue && p.EndTime >= p.StartTime
-                        ? ((p.EndTime - p.StartTime).TotalSeconds < 60
-                            ? (int)(p.EndTime - p.StartTime).TotalSeconds + "s lifetime"
-                            : (int)(p.EndTime - p.StartTime).TotalMinutes + "m lifetime")
-                        : "ended " + p.EndTime.ToString("HH:mm:ss");
-
-                    var tTime = new TextBlock {
-                        Text = dur,
-                        FontFamily = Ui.MonoFont,
-                        FontSize = 10.5,
-                        Foreground = Ui.Sub,
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        VerticalAlignment = VerticalAlignment.Center
-                    };
-                    Grid.SetColumn(tTime, 1);
-                    hRow.Children.Add(tName);
-                    hRow.Children.Add(tTime);
-                    terminatedList.Children.Add(hRow);
-                }
-                if (hCount == 0) {
-                    terminatedList.Children.Add(new TextBlock {
-                        Text = "No recent process terminations recorded",
-                        Style = (Style)root.Resources["Hint"],
-                        Margin = new Thickness(0, 4, 0, 4)
-                    });
-                }
-            }
-
-            if (txtActivityStatus != null) {
-                txtActivityStatus.Text = all.Count + " active processes";
-            }
-        }
-
-        void BuildSecurity() {
-            if (procMon != null) {
-                slAlertCpu.Value = procMon.Settings.CpuSpikeThreshold;
-                slAlertRam.Value = procMon.Settings.RamHighMb;
-                txtAlertCpu.Text = (int)procMon.Settings.CpuSpikeThreshold + "%";
-                txtAlertRam.Text = procMon.Settings.RamHighMb + " MB";
-            }
-            slAlertCpu.ValueChanged += delegate {
-                int v = (int)slAlertCpu.Value;
-                txtAlertCpu.Text = v + "%";
-                if (procMon != null) procMon.Settings.CpuSpikeThreshold = v;
-            };
-            slAlertRam.ValueChanged += delegate {
-                int v = (int)slAlertRam.Value;
-                txtAlertRam.Text = v + " MB";
-                if (procMon != null) procMon.Settings.RamHighMb = v;
-            };
-            if (btnClearAlerts != null) {
-                btnClearAlerts.MouseLeftButtonUp += delegate {
-                    if (procMon != null) procMon.ClearAlerts();
-                    RefreshSecurity();
-                    UpdateAlertBadges();
-                };
-            }
-        }
-
-        void RefreshSecurity() {
-            if (alertList == null || procMon == null) return;
-            alertList.Children.Clear();
-            var alerts = procMon.Alerts();
-            if (txtNoAlerts != null) txtNoAlerts.Visibility = alerts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-
-            for (int i = 0; i < alerts.Count; i++) {
-                var a = alerts[i];
-                var card = new Border {
-                    Background = Ui.Sunken,
-                    BorderBrush = a.Severity >= AlertSeverity.High ? Ui.Brush(Ui.Danger) : Ui.Line,
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(8),
-                    Padding = new Thickness(14, 10, 14, 10),
-                    Margin = new Thickness(0, 4, 0, 4)
-                };
-                var sp = new StackPanel();
-                var g = new Grid();
+                Grid g = new Grid();
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-                var titleSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                var dot = new Ellipse {
-                    Width = 7, Height = 7,
-                    Fill = a.Severity >= AlertSeverity.High ? Ui.Brush(Ui.Danger) : a.Severity >= AlertSeverity.Medium ? Ui.Brush(Ui.Warn) : Ui.Brush(Ui.Ok),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 0, 8, 0)
-                };
-                var tTitle = new TextBlock {
-                    Text = a.ProcessName + " (PID " + a.Pid + ")",
-                    FontFamily = Ui.UiFont,
-                    FontSize = 13,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = Ui.TextHi,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                titleSp.Children.Add(dot);
-                titleSp.Children.Add(tTitle);
+                StackPanel sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                sp.Children.Add(new TextBlock { Text = KeyName(src), Style = (Style)FindResource("MonoVal"), FontWeight = FontWeights.SemiBold });
+                sp.Children.Add(new TextBlock { Text = "   ➜   ", Style = (Style)FindResource("Mono"), Foreground = (Brush)FindResource("Desc") });
+                sp.Children.Add(new TextBlock { Text = KeyName(dst), Style = (Style)FindResource("MonoVal"), Foreground = accent, FontWeight = FontWeights.SemiBold });
 
-                var tWhen = new TextBlock {
-                    Text = a.When.ToString("HH:mm:ss"),
-                    FontFamily = Ui.MonoFont,
-                    FontSize = 10.5,
-                    Foreground = Ui.Sub,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Center
-                };
-                Grid.SetColumn(tWhen, 1);
-                g.Children.Add(titleSp);
-                g.Children.Add(tWhen);
-                sp.Children.Add(g);
+                TextBlock btnDel = new TextBlock { Text = "Remove", Style = (Style)FindResource("Link"), Cursor = Cursors.Hand, VerticalAlignment = VerticalAlignment.Center };
+                uint sCopy = src;
+                btnDel.MouseLeftButtonUp += delegate { RemoveRemap(sCopy); };
 
-                if (!string.IsNullOrEmpty(a.Path)) {
-                    var tPath = new TextBlock {
-                        Text = a.Path,
-                        FontFamily = Ui.MonoFont,
-                        FontSize = 10,
-                        Foreground = Ui.Sub,
-                        TextTrimming = TextTrimming.CharacterEllipsis,
-                        Margin = new Thickness(15, 3, 0, 0)
-                    };
-                    sp.Children.Add(tPath);
-                }
-
-                if (a.Indicators != null) {
-                    for (int j = 0; j < a.Indicators.Length; j++) {
-                        var tInd = new TextBlock {
-                            Text = "- " + a.Indicators[j],
-                            FontFamily = Ui.UiFont,
-                            FontSize = 11.5,
-                            Foreground = a.Severity >= AlertSeverity.High ? Ui.Brush(Ui.Danger) : Ui.Brush(Ui.Warn),
-                            Margin = new Thickness(15, 2, 0, 0)
-                        };
-                        sp.Children.Add(tInd);
-                    }
-                }
-                card.Child = sp;
-                alertList.Children.Add(card);
-            }
-
-            if (txtSecurityStatus != null) {
-                txtSecurityStatus.Text = alerts.Count == 0 ? "All quiet" : alerts.Count + " alerts";
+                Grid.SetColumn(sp, 0);
+                Grid.SetColumn(btnDel, 1);
+                g.Children.Add(sp);
+                g.Children.Add(btnDel);
+                row.Child = g;
+                remapListHost.Children.Add(row);
             }
         }
 
-        void UpdateAlertBadges() {
-            int unack = procMon != null ? procMon.UnacknowledgedAlerts : 0;
-            if (alertBadge != null) {
-                alertBadge.Visibility = unack > 0 ? Visibility.Visible : Visibility.Collapsed;
-                if (alertBadgeText != null) alertBadgeText.Text = unack.ToString(CultureInfo.InvariantCulture);
+        public static string KeyName(uint vk) {
+            switch (vk) {
+                case 0x08: return "Backspace";
+                case 0x09: return "Tab";
+                case 0x0D: return "Enter";
+                case 0x10: return "Shift";
+                case 0x11: return "Ctrl";
+                case 0x12: return "Alt";
+                case 0x13: return "Pause";
+                case 0x14: return "Caps Lock";
+                case 0x1B: return "Escape";
+                case 0x20: return "Space";
+                case 0x21: return "Page Up";
+                case 0x22: return "Page Down";
+                case 0x23: return "End";
+                case 0x24: return "Home";
+                case 0x25: return "Left Arrow";
+                case 0x26: return "Up Arrow";
+                case 0x27: return "Right Arrow";
+                case 0x28: return "Down Arrow";
+                case 0x2C: return "Print Screen";
+                case 0x2D: return "Insert";
+                case 0x2E: return "Delete";
+                case 0x5B: return "Left Windows";
+                case 0x5C: return "Right Windows";
+                case 0x5D: return "Menu";
+                case 0xA0: return "Left Shift";
+                case 0xA1: return "Right Shift";
+                case 0xA2: return "Left Ctrl";
+                case 0xA3: return "Right Ctrl";
+                case 0xA4: return "Left Alt";
+                case 0xA5: return "Right Alt";
+                default:
+                    if (vk >= 0x30 && vk <= 0x39) return ((char)vk).ToString();
+                    if (vk >= 0x41 && vk <= 0x5A) return ((char)vk).ToString();
+                    if (vk >= 0x70 && vk <= 0x7B) return "F" + (vk - 0x6F);
+                    if (vk >= 0x60 && vk <= 0x69) return "Num " + (vk - 0x60);
+                    if (vk == 0x6A) return "Num *";
+                    if (vk == 0x6B) return "Num +";
+                    if (vk == 0x6D) return "Num -";
+                    if (vk == 0x6E) return "Num .";
+                    if (vk == 0x6F) return "Num /";
+                    if (vk == 0xBA) return "; :";
+                    if (vk == 0xBB) return "= +";
+                    if (vk == 0xBC) return ", <";
+                    if (vk == 0xBD) return "- _";
+                    if (vk == 0xBE) return ". >";
+                    if (vk == 0xBF) return "/ ?";
+                    if (vk == 0xC0) return "` ~";
+                    if (vk == 0xDB) return "[ {";
+                    if (vk == 0xDC) return "\\ |";
+                    if (vk == 0xDD) return "] }";
+                    if (vk == 0xDE) return "' \"";
+                    return "Key (0x" + vk.ToString("X2") + ")";
             }
-            if (secAlertBadge != null) {
-                secAlertBadge.Visibility = unack > 0 ? Visibility.Visible : Visibility.Collapsed;
-                if (secAlertBadgeText != null) secAlertBadgeText.Text = unack.ToString(CultureInfo.InvariantCulture);
+        }
+
+        public static uint VkFromKeyDef(KeyDef k) {
+            if (k == null) return 0;
+            string l = k.Label.Trim();
+            if (l == "Esc") return 0x1B;
+            if (l == "Caps") return 0x14;
+            if (l == "Tab") return 0x09;
+            if (l == "Enter" || l == "Ent") return 0x0D;
+            if (l == "Ctrl") return k.X < 7 ? 0xA2u : 0xA3u;
+            if (l == "Alt") return k.X < 7 ? 0xA4u : 0xA5u;
+            if (l == "Shift") return k.X < 7 ? 0xA0u : 0xA1u;
+            if (l == "Win") return 0x5B;
+            if (l == "Del") return 0x2E;
+            if (l == "\u232B") return 0x08;
+            if (l == "\u25C0") return 0x25;
+            if (l == "\u25B6") return 0x27;
+            if (l == "\u25B2\u25BC") return 0x26;
+            if (l.Length == 0) return 0x20;
+            if (l.Length == 1) {
+                char c = l[0];
+                if (c >= 'A' && c <= 'Z') return (uint)c;
+                if (c >= '0' && c <= '9') return (uint)c;
+                if (c == '`') return 0xC0;
+                if (c == '-') return 0xBD;
+                if (c == '=') return 0xBB;
+                if (c == '[') return 0xDB;
+                if (c == ']') return 0xDD;
+                if (c == '\\') return 0xDC;
+                if (c == ';') return 0xBA;
+                if (c == '\'') return 0xDE;
+                if (c == ',') return 0xBC;
+                if (c == '.') return 0xBE;
+                if (c == '/') return 0xBF;
             }
+            if (l.StartsWith("F") && l.Length <= 3) {
+                int fn;
+                if (int.TryParse(l.Substring(1), out fn) && fn >= 1 && fn <= 12)
+                    return (uint)(0x70 + fn - 1);
+            }
+            return 0;
         }
 
         // ---------- refresh rate, graphics, key command, tray temperature ----------
@@ -2488,6 +2503,7 @@ namespace Ohman {
             if (src != null) src.AddHook(Hook);
             try { int pref = 2; DwmSetWindowAttribute(hwnd, 33, ref pref, 4); int dark = 1; DwmSetWindowAttribute(hwnd, 20, ref dark, 4); int border = 0x0025282C; DwmSetWindowAttribute(hwnd, 34, ref border, 4); } catch { }
             if (E.S.Hotkeys) RegisterHotkeys();
+            else if (E.S.KeyRemapEnabled) InstallKeyboardHook();
         }
         void RegisterHotkeys() {
             if (hotkeysRegistered) return;
@@ -2515,46 +2531,81 @@ namespace Ohman {
             if (llHook == IntPtr.Zero) Log.Write("Global low-level keyboard hook failed");
         }
         IntPtr GlobalKeyHook(int nCode, IntPtr wParam, IntPtr lParam) {
-            if (nCode >= 0 && E.S.Hotkeys) {
+            if (nCode >= 0) {
                 int msg = wParam.ToInt32();
                 var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
                 uint vk = info.vkCode;
 
-                if (vk == (uint)'O') {
-                    if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
-                        winOHeld = false;
-                    } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
-                        bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-                        bool otherMods = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0 || (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-                        if (winDown && !otherMods) {
-                            if (!winOHeld) {
-                                winOHeld = true;
-                                Dispatcher.BeginInvoke((Action)CycleOverlayWithFlash);
-                            }
-                            return (IntPtr)1;
+                // 1. Key capture for Remapping UI
+                if (capturingSrc && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
+                    capturingSrc = false;
+                    selectedSrcVk = vk;
+                    Dispatcher.BeginInvoke((Action)delegate {
+                        if (txtSrcKeyName != null) {
+                            txtSrcKeyName.Text = KeyName(vk);
+                            txtSrcKeyName.Foreground = (Brush)FindResource("TextHi");
                         }
+                    });
+                    return (IntPtr)1;
+                }
+                if (capturingDst && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
+                    capturingDst = false;
+                    selectedDstVk = vk;
+                    Dispatcher.BeginInvoke((Action)delegate {
+                        if (txtDstKeyName != null) {
+                            txtDstKeyName.Text = KeyName(vk);
+                            txtDstKeyName.Foreground = (Brush)FindResource("TextHi");
+                        }
+                    });
+                    return (IntPtr)1;
+                }
+
+                // 2. Keystroke Remapping (only for un-injected hardware keystrokes)
+                if ((info.flags & 0x10) == 0 && E.S.KeyRemapEnabled && remapTable.Count > 0) {
+                    uint targetVk;
+                    if (remapTable.TryGetValue(vk, out targetVk)) {
+                        bool isExt = (info.flags & 1) != 0 || targetVk == 0x25 || targetVk == 0x26 || targetVk == 0x27 || targetVk == 0x28 || targetVk == 0x2D || targetVk == 0x2E || targetVk == 0xA3 || targetVk == 0xA5;
+                        uint extFlag = isExt ? 1u : 0u;
+                        if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
+                            keybd_event((byte)targetVk, 0, extFlag, IntPtr.Zero);
+                        } else if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                            keybd_event((byte)targetVk, 0, extFlag | 2u, IntPtr.Zero);
+                        }
+                        return (IntPtr)1;
                     }
-                } else if (vk == (uint)'Q') {
-                    if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
-                        fnQHeld = false;
-                    } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
-                        // On laptops, Fn is typically filtered by EC/firmware.
-                        // When Fn is combined with Q, depending on the keyboard firmware/driver,
-                        // it can either emit a custom scan code or Alt+Q / Ctrl+Q / bare Q or be emitted if user has Fn lock on.
-                        // We support Alt+Q or Ctrl+Q or bare Q when Fn-mode emulation is used, but specifically:
-                        // If Alt+Q or Win+Q is pressed, or if Fn+Q sends a Q event without standard text modifiers:
-                        bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                        bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-                        bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-                        bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-                        // Fn+Q often surfaces as Alt+Q or unmodified Q with special extra flags in Windows,
-                        // or user presses Alt+Q / Fn+Q shortcut.
-                        if (altDown && !ctrlDown && !winDown && !shiftDown) {
-                            if (!fnQHeld) {
-                                fnQHeld = true;
-                                Dispatcher.BeginInvoke((Action)Toggle5700WithFlash);
+                }
+
+                // 3. Hotkeys
+                if (E.S.Hotkeys) {
+                    if (vk == (uint)'O') {
+                        if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                            winOHeld = false;
+                        } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
+                            bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                            bool otherMods = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0 || (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                            if (winDown && !otherMods) {
+                                if (!winOHeld) {
+                                    winOHeld = true;
+                                    Dispatcher.BeginInvoke((Action)CycleOverlayWithFlash);
+                                }
+                                return (IntPtr)1;
                             }
-                            return (IntPtr)1;
+                        }
+                    } else if (vk == (uint)'Q') {
+                        if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                            fnQHeld = false;
+                        } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
+                            bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                            bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                            bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                            bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                            if (altDown && !ctrlDown && !winDown && !shiftDown) {
+                                if (!fnQHeld) {
+                                    fnQHeld = true;
+                                    Dispatcher.BeginInvoke((Action)Toggle5700WithFlash);
+                                }
+                                return (IntPtr)1;
+                            }
                         }
                     }
                 }
@@ -2587,12 +2638,18 @@ namespace Ohman {
             if (openSettings) page = "settings";
             if (Program.KeyboardTest) page = "keyboard";
             if (page == "fans") Navigate(Page.Fans, false);
-            else if (page == "keyboard" && E.Light != null) Navigate(Page.Keyboard, false);
+            else if (page == "keyboard") Navigate(Page.Keyboard, false);
+            else if (page == "remap") {
+                Navigate(Page.Keyboard, false);
+                if (kbdSubTabsSeg != null) kbdSubTabsSeg.Select(1, false);
+                if (kbdLightingPanel != null) kbdLightingPanel.Visibility = Visibility.Collapsed;
+                if (kbdRemapPanel != null) kbdRemapPanel.Visibility = Visibility.Visible;
+            }
             else if (page == "settings") Navigate(Page.Settings, false);
-            else if (page == "activity") Navigate(Page.Activity, false);
-            else if (page == "security") Navigate(Page.Security, false);
             else if (page == "update") ShowUpdateRow();          // where the rail button goes: settings, at the update row
             Morph(false);
+            StateChanged += delegate { if (WindowState == WindowState.Minimized) TrimMemory(); };
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, (Action)TrimMemory);
             if (Program.JustUpdated) ShowToast("Updated to " + Program.Version, false);
             if (Program.FlashTest) Flash("Performance mode", ModeSubs[2], 2);
             if (screenshotPath == null) return;
@@ -2654,10 +2711,9 @@ namespace Ohman {
             // screen. The pages are rebuilt from the same visual tree on the next show, so nothing is lost.
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, (Action)delegate {
                 if (IsVisible) return;
-                try { GC.Collect(2, GCCollectionMode.Optimized); SetProcessWorkingSetSize(Process.GetCurrentProcess().Handle, new IntPtr(-1), new IntPtr(-1)); } catch { }
+                TrimMemory();
             });
         }
-        [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr h, IntPtr min, IntPtr max);
         void StartShowListener() {
             var t = new Thread(delegate() {
                 var handles = new List<WaitHandle>();
@@ -2682,8 +2738,6 @@ namespace Ohman {
             if (resetting) { try { E.S.Delete(); } catch { } } else { try { E.S.Save(); } catch { } }
             try { UnregisterHotkeys(); } catch { }
             try { uiTimer.Stop(); } catch { }
-            try { if (procRefreshTimer != null) procRefreshTimer.Stop(); } catch { }
-            try { if (procMon != null) procMon.Dispose(); } catch { }
             try { Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerMode; } catch { }
             try { if (tray != null) { tray.Visible = false; tray.Dispose(); } } catch { }
             try { if (osd != null) osd.Close(); } catch { }

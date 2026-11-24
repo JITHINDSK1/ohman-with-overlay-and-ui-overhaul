@@ -120,6 +120,9 @@ namespace Ohman {
         public bool Guard = true;                   // thermal guard: force max fan when the machine runs away
         public bool UpdateOnLaunch = true;          // ask GitHub for the latest release when Ohman starts (once a day)
         public string KeyCommand = "";              // KeyAction.Run: command line the OMEN key starts
+        public bool KeyRemapEnabled = true;         // global keyboard remapping toggle
+        public string KeyRemaps = "";               // format: "VK_SRC:VK_DST,..."
+        public string PerKeyColors = "";            // format: "KEY_IDX:HEX,..."
         public bool NoPersist;                      // set when --set overrides are in effect: never write them back to the file
         public int SavedModeOverride = -1;          // while battery forces Eco, the file keeps the user's own mode
 
@@ -205,6 +208,9 @@ namespace Ohman {
                         case "Guard": if (bool.TryParse(v, out b)) s.Guard = b; break;
                         case "UpdateOnLaunch": if (bool.TryParse(v, out b)) s.UpdateOnLaunch = b; break;
                         case "KeyCommand": s.KeyCommand = v; break;
+                        case "KeyRemapEnabled": if (bool.TryParse(v, out b)) s.KeyRemapEnabled = b; break;
+                        case "KeyRemaps": s.KeyRemaps = v; break;
+                        case "PerKeyColors": s.PerKeyColors = v; break;
                     }
                 }
             } catch (Exception ex) { Log.Write("settings apply " + k + ": " + ex.Message); }
@@ -258,6 +264,9 @@ namespace Ohman {
                 sb.AppendLine("KeyCommand=" + KeyCommand);
                 sb.AppendLine("Guard=" + Guard);
                 sb.AppendLine("UpdateOnLaunch=" + UpdateOnLaunch);
+                sb.AppendLine("KeyRemapEnabled=" + KeyRemapEnabled);
+                sb.AppendLine("KeyRemaps=" + KeyRemaps);
+                sb.AppendLine("PerKeyColors=" + PerKeyColors);
                 sb.AppendLine("MaxBackWhenCool=" + MaxBackWhenCool);
                 sb.AppendLine("MaxStopAfterMin=" + MaxStopAfterMin);
                 sb.AppendLine("ManualLinked=" + ManualLinked);
