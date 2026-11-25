@@ -356,9 +356,9 @@
     </Border>
 
     <!-- Main Content Area -->
-    <Grid Grid.Column="1" ClipToBounds="True">
-      <ScrollViewer x:Name="MainScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False">
-        <Grid x:Name="PageHost" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0">
+    <Grid Grid.Column="1" ClipToBounds="True" Background="Transparent">
+      <ScrollViewer x:Name="MainScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Focusable="False" Background="Transparent" PanningMode="VerticalOnly">
+        <Grid x:Name="PageHost" HorizontalAlignment="Stretch" VerticalAlignment="Top" Margin="0" Background="Transparent">
 
       <!-- ============ HOME ============ -->
       <StackPanel x:Name="PageHome" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch">
@@ -368,8 +368,8 @@
             <Border x:Name="DemoBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33F3821D" Padding="6,2" VerticalAlignment="Center" ToolTip="Not running as administrator: hardware is simulated">
               <TextBlock Text="DEMO" FontSize="9.5" FontWeight="Bold" Foreground="#F3821D" FontFamily="{DynamicResource UiFont}"/>
             </Border>
-            <Border x:Name="EmeBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33FF1E27" Padding="6,2" VerticalAlignment="Center" ToolTip="Extreme Mode Active: Battery fan control unrestricted">
-              <TextBlock Text="EME ACTIVE" FontSize="9.5" FontWeight="Bold" Foreground="#FF1E27" FontFamily="{DynamicResource UiFont}"/>
+            <Border x:Name="EmeBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33FF1E27" Padding="6,2" VerticalAlignment="Center" ToolTip="Unleashed Mode Active: Battery fan control unrestricted">
+              <TextBlock Text="UNLEASHED" FontSize="9.5" FontWeight="Bold" Foreground="#FF1E27" FontFamily="{DynamicResource UiFont}"/>
             </Border>
           </StackPanel>
           <TextBlock x:Name="TxtHomeStatus" Style="{StaticResource Mono}" FontSize="12" HorizontalAlignment="Right"/>
@@ -547,8 +547,8 @@
         <Grid x:Name="HeadFans" Background="Transparent">
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock Text="Fans" Style="{StaticResource Title}"/>
-            <Border x:Name="EmeFanBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33FF1E27" Padding="6,2" VerticalAlignment="Center" ToolTip="Extreme Mode Active">
-              <TextBlock Text="EME ACTIVE" FontSize="9.5" FontWeight="Bold" Foreground="#FF1E27" FontFamily="{DynamicResource UiFont}"/>
+            <Border x:Name="EmeFanBadge" Visibility="Collapsed" Margin="10,1,0,0" CornerRadius="4" Background="#33FF1E27" Padding="6,2" VerticalAlignment="Center" ToolTip="Unleashed Mode Active">
+              <TextBlock Text="UNLEASHED" FontSize="9.5" FontWeight="Bold" Foreground="#FF1E27" FontFamily="{DynamicResource UiFont}"/>
             </Border>
           </StackPanel>
           <TextBlock x:Name="TxtFansStatus" Style="{StaticResource Mono}" HorizontalAlignment="Right"/>
@@ -609,7 +609,7 @@
           </StackPanel>
         </Grid>
 
-        <!-- 6200 RPM: dedicated overdrive tab view -->
+        <!-- Heat Wipe (6,200 RPM): dedicated overdrive tab view -->
         <Grid x:Name="Turbo6200Block" Margin="0,24,0,0" Visibility="Collapsed">
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -711,7 +711,7 @@
           </StackPanel>
         </StackPanel>
 
-        <!-- 6200 RPM Overdrive controls & banner -->
+        <!-- Heat Wipe Overdrive controls & banner -->
         <StackPanel x:Name="OptsTurbo6200" Margin="0,24,0,0" Visibility="Collapsed">
           <Border Background="{StaticResource Sunken}" CornerRadius="10" Padding="18,14" BorderBrush="#40FF1E27" BorderThickness="1">
             <Grid>
@@ -719,9 +719,9 @@
               <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
                 <StackPanel Orientation="Horizontal">
                   <TextBlock Text="⚡" FontSize="14" Foreground="#FF1E27" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                  <TextBlock Text="6,200 RPM OVERDRIVE MODE (IN-APP)" Style="{StaticResource Row}" Foreground="#FF454D" FontWeight="Bold"/>
+                  <TextBlock Text="HEAT WIPE OVERDRIVE MODE (6,200 RPM)" Style="{StaticResource Row}" Foreground="#FF454D" FontWeight="Bold"/>
                 </StackPanel>
-                <TextBlock Text="Hardware fan velocity forced to 6,200 RPM (129.2% of factory 4,800 RPM scale). High thermal dissipation. Managed exclusively within the application." Style="{StaticResource RowSub}" Margin="0,4,0,0"/>
+                <TextBlock Text="Hardware fan velocity forced to 6,200 RPM (129.2% of factory 4,800 RPM scale) to rapidly clear heat soak. Managed exclusively within the application." Style="{StaticResource RowSub}" Margin="0,4,0,0"/>
               </StackPanel>
               <Border x:Name="BtnDisengage6200" Grid.Column="1" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="6" Padding="14,8" Cursor="Hand" VerticalAlignment="Center">
                 <TextBlock Text="Return to Auto" Style="{StaticResource Row}" FontSize="12" FontWeight="SemiBold"/>
@@ -898,7 +898,7 @@
                 </StackPanel>
 
                 <!-- Add Button -->
-                <Border x:Name="BtnAddRemap" Grid.Column="3" Background="#E32636" CornerRadius="6" Height="36" Padding="16,0" Margin="14,18,0,0" VerticalAlignment="Center" Cursor="Hand">
+                <Border x:Name="BtnAddRemap" Grid.Column="3" Background="{DynamicResource Accent}" CornerRadius="6" Height="36" Padding="16,0" Margin="14,18,0,0" VerticalAlignment="Center" Cursor="Hand">
                   <TextBlock Text="+ Add Remap" FontWeight="SemiBold" Foreground="White" FontSize="12.5" VerticalAlignment="Center"/>
                 </Border>
               </Grid>
@@ -977,18 +977,12 @@
       </StackPanel>
 
       <!-- ============ SETTINGS ============ -->
-      <Grid x:Name="PageSettings" MinHeight="600" MaxWidth="1100" HorizontalAlignment="Stretch" Margin="32,24,32,24" Visibility="Collapsed">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto"/>
-          <RowDefinition Height="*"/>
-          <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        <Grid x:Name="HeadSettings" Background="Transparent" Margin="24,24,24,16">
+      <StackPanel x:Name="PageSettings" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Background="Transparent" Visibility="Collapsed">
+        <Grid x:Name="HeadSettings" Background="Transparent" Margin="0,0,0,18">
           <TextBlock Text="Settings" Style="{StaticResource Title}"/>
           <TextBlock x:Name="TxtMachine" Style="{StaticResource Mono}" HorizontalAlignment="Right"/>
         </Grid>
-        <ScrollViewer x:Name="Scroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="24,4,16,8">
-          <StackPanel>
+        <StackPanel Background="Transparent">
 
             <TextBlock x:Name="SecKey" Text="OMEN KEY" Margin="0,0,0,12"/>
             <TextBlock Text="The OMEN key" Style="{StaticResource Row}"/>
@@ -1116,7 +1110,7 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center" Margin="0,0,18,0">
                   <TextBlock Text="Pin overlay" Style="{StaticResource Row}"/>
-                  <TextBlock Text="Always on top" Style="{StaticResource RowSub}"/>
+                  <TextBlock Text="Always on top (hidden from Alt+Tab, stays over borderless games)" Style="{StaticResource RowSub}"/>
                 </StackPanel>
                 <ToggleButton x:Name="TgOverlayPin" Grid.Column="1" Style="{StaticResource Switch}"/>
               </Grid>
@@ -1178,9 +1172,8 @@
               </Grid>
             </Border>
             <TextBlock x:Name="TxtDiag" Style="{StaticResource Mono}" FontSize="10.5" Margin="0,14,0,0" Visibility="Collapsed" TextWrapping="Wrap"/>
-          </StackPanel>
-        </ScrollViewer>
-        <Border Grid.Row="2" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="24,16">
+        </StackPanel>
+        <Border Margin="0,24,0,0" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,16,0,0">
           <StackPanel Orientation="Horizontal">
             <TextBlock x:Name="BtnDiag" Style="{StaticResource Link}" FontSize="13" Foreground="{StaticResource SegText}" Text="Diagnostics"/>
             <TextBlock x:Name="BtnSupport" Style="{StaticResource Link}" FontSize="13" Foreground="{StaticResource SegText}" Text="Report Issue" Margin="22,0,0,0" ToolTip="Collects everything needed to add or fix this laptop, copies it, and opens a prefilled GitHub issue"/>
@@ -1188,12 +1181,9 @@
             <TextBlock x:Name="BtnExit" Style="{StaticResource Link}" FontSize="13" Text="Exit Ohman" Margin="22,0,0,0"/>
           </StackPanel>
         </Border>
-      </Grid>
+      </StackPanel>
       </Grid>
       </ScrollViewer>
-
-      <!-- Legacy BtnClose hook kept invisible for code compatibility -->
-      <Button x:Name="BtnClose" Visibility="Collapsed" IsHitTestVisible="False"/>
 
       <!-- transient status, over the page bottom -->
       <Border x:Name="Toast" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="24,0,24,14" CornerRadius="8" Background="#D4100D0B" BorderBrush="#2C2825" BorderThickness="1" Padding="12,7" Opacity="0" IsHitTestVisible="False">

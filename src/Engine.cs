@@ -69,8 +69,8 @@ namespace Ohman {
     }
 
     public sealed class Settings {
-        public int ModeIndex = 1;                   // 0 Quiet, 1 Balanced, 2 Performance, 3 EME
-        // one profile per mode; Performance & EME default to OGH's +15 W gain, the others to +0
+        public int ModeIndex = 1;                   // 0 Quiet, 1 Balanced, 2 Performance, 3 Unleashed
+        // one profile per mode; Performance & Unleashed default to OGH's +15 W gain, the others to +0
         public readonly ModeProfile[] Modes = {
             new ModeProfile(),
             new ModeProfile(),
@@ -95,7 +95,7 @@ namespace Ohman {
         public bool MaxBackWhenCool = true;         // leave max fan once the CPU has been below 60 C for two minutes
         public int MaxStopAfterMin = 30;            // leave max fan after this many minutes (0 = never)
         public bool ManualLinked = true;            // the two manual sliders move together
-        public bool EmeConfirmed = false;           // first-time EME confirmation accepted
+        public bool EmeConfirmed = false;           // first-time Unleashed mode confirmation accepted
         public long UpdateChecked = 0;              // ticks of the last successful update check
         public string CheckedFrom = "";             // the build that did that check; a different one means the cache is not ours
         public string LatestVersion = "";           // newest release tag GitHub reported
@@ -159,7 +159,7 @@ namespace Ohman {
         public void Apply(string k, string v) {
             var s = this;
             try {
-                // per-mode keys: M0.Fan=… M1.TdpOffset=… (M0 Quiet, M1 Balanced, M2 Performance, M3 EME)
+                // per-mode keys: M0.Fan=… M1.TdpOffset=… (M0 Quiet, M1 Balanced, M2 Performance, M3 Unleashed)
                 if (k.Length > 3 && k[0] == 'M' && char.IsDigit(k[1]) && k[2] == '.') { int mi = k[1] - '0'; if (mi >= 0 && mi < 4) Modes[mi].Apply(k.Substring(3), v); return; }
                 // un-prefixed keys apply to every mode (handy for hand edits and --set)
                 if (k == "Fan" || k == "Fan1" || k == "Fan2" || k == "TdpOffset" || k == "Gpu" || k == "GpuAuto" || k == "Curve") { foreach (var m in Modes) m.Apply(k, v); return; }
@@ -170,7 +170,8 @@ namespace Ohman {
                         case "Ver": if (TryInt(v, out n)) s.Ver = n; break;
                         case "ModeIndex": if (TryInt(v, out n)) s.ModeIndex = Math.Max(0, Math.Min(3, n)); break;
                         case "EcoCool": if (bool.TryParse(v, out b)) s.EcoCool = b; break;
-                        case "EmeConfirmed": if (bool.TryParse(v, out b)) s.EmeConfirmed = b; break;
+                        case "EmeConfirmed":
+                        case "UnleashedConfirmed": if (bool.TryParse(v, out b)) s.EmeConfirmed = b; break;
                         case "Key": if (TryInt(v, out n)) s.Key = (KeyAction)Math.Max(0, Math.Min(4, n)); break;
                         case "KeyId": if (TryInt(v, out n)) s.KeyId = (uint)n; break;
                         case "KeyData": if (TryInt(v, out n)) s.KeyData = (uint)n; break;
@@ -242,9 +243,9 @@ namespace Ohman {
                 sb.AppendLine("Ver=" + FileVer);
                 sb.AppendLine("ModeIndex=" + (SavedModeOverride >= 0 ? SavedModeOverride : ModeIndex));
                 sb.AppendLine("EcoCool=" + EcoCool);
-                sb.AppendLine("# per-mode profiles: M0 = Quiet, M1 = Balanced, M2 = Performance, M3 = EME");
+                sb.AppendLine("# per-mode profiles: M0 = Quiet, M1 = Balanced, M2 = Performance, M3 = Unleashed");
                 for (int i = 0; i < 4; i++) Modes[i].Write(sb, "M" + i + ".");
-                sb.AppendLine("EmeConfirmed=" + EmeConfirmed);
+                sb.AppendLine("UnleashedConfirmed=" + EmeConfirmed);
                 sb.AppendLine("Key=" + (int)Key);
                 sb.AppendLine("KeyId=" + KeyId);
                 sb.AppendLine("KeyData=" + KeyData);
@@ -309,7 +310,7 @@ namespace Ohman {
         public event Action<uint, uint> AnyKeyEvent;      // every hpqBEvnt
         public event Action<Rgb[]> FrameChanged;           // an effect frame was written to the keyboard (worker thread)
 
-        public static readonly string[] ModeNames = { "Quiet", "Balanced", "Performance", "EME" };
+        public static readonly string[] ModeNames = { "Quiet", "Balanced", "Performance", "Unleashed" };
         public byte[] ModeBytes { get { return new byte[] { S.EcoCool ? P.ModeCool : P.ModeEco, P.ModeBalanced, P.ModePerformance, P.ModePerformance }; } }
         public bool OnBattery;                              // mirrored into the SetMode payload like OGH does (BiosAutoFanControlInDc)
         public bool IsEme { get { return ModeIndex == 3; } }
@@ -333,10 +334,11 @@ namespace Ohman {
         public Rgb[] LightColors = new Rgb[0];              // what the app believes the zones show
         public bool ReadOnly { get { return !Supported && !Hw.IsDemo; } }
 
+        int cachedHwFanTop = -2;
         public int HardwareFanTableMax {
             get {
-                int top = Hw.GetFanTableMax();
-                return top > 0 ? top : P.Curve.Ceiling;
+                if (cachedHwFanTop == -2) cachedHwFanTop = Hw.GetFanTableMax();
+                return cachedHwFanTop > 0 ? cachedHwFanTop : P.Curve.Ceiling;
             }
         }
         public bool Supports5700Rpm { get { return HardwareFanTableMax >= 57; } }
@@ -512,7 +514,7 @@ namespace Ohman {
                         case FanMode.Auto: case FanMode.Custom: AutoTick(false); break;
                         case FanMode.Turbo6200:
                             if ((DateTime.Now - lastFanWrite).TotalSeconds >= 30) {
-                                WriteLevels(62, 62, "Turbo 6200 RPM overdrive");
+                                WriteLevels(62, 62, "Heat Wipe (6200 RPM) overdrive");
                                 lastFanWrite = DateTime.Now;
                             }
                             break;
@@ -536,7 +538,7 @@ namespace Ohman {
                         case FanMode.Max:
                             int maxLvl = IsEme ? 57 : Math.Min(48, P.Curve.Ceiling);
                             if ((DateTime.Now - lastFanWrite).TotalSeconds >= 30) {
-                                WriteLevels(maxLvl, maxLvl, IsEme ? "Max fan (EME 5700 RPM)" : "Max fan (4800 RPM cap)");
+                                WriteLevels(maxLvl, maxLvl, IsEme ? "Max fan (Unleashed 5700 RPM)" : "Max fan (4800 RPM cap)");
                                 lastFanWrite = DateTime.Now;
                             }
                             if (MaxShouldStop()) { Log.Write("max fan: " + maxStopReason + ", back to auto"); leaveMax = true; }
@@ -799,7 +801,7 @@ namespace Ohman {
         bool WriteLevels(int l1, int l2, string what) {
             if (fanLevelsRefused) return false;
             if (OnBattery && !IsEme && (S.Fan == FanMode.Manual || S.Fan == FanMode.Turbo6200) && (l1 > 0 || l2 > 0)) {
-                Log.Write("skipped manual/turbo fan write on battery: EME mode required for battery fan control");
+                Log.Write("skipped manual/heat-wipe fan write on battery: Unleashed mode required for battery fan control");
                 return false;
             }
             int ceiling = (S.Fan == FanMode.Turbo6200) ? 62 : IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
@@ -847,7 +849,7 @@ namespace Ohman {
         bool WriteLevelsRaw(int l1, int l2, string what) {
             if (fanLevelsRefused) return false;
             if (OnBattery && !IsEme && (S.Fan == FanMode.Manual || S.Fan == FanMode.Turbo6200) && (l1 > 0 || l2 > 0)) {
-                Log.Write("skipped manual/turbo fan write on battery: EME mode required for battery fan control");
+                Log.Write("skipped manual/heat-wipe fan write on battery: Unleashed mode required for battery fan control");
                 return false;
             }
             int ceiling = (S.Fan == FanMode.Turbo6200) ? 62 : IsEme ? Math.Max(57, P.Curve.Ceiling) : P.Curve.Ceiling;
@@ -881,11 +883,11 @@ namespace Ohman {
             switch (S.Fan) {
                 case FanMode.Turbo6200:
                     MaxFan(false, "Max fan off");
-                    WriteLevels(62, 62, "Turbo 6200 RPM overdrive");
+                    WriteLevels(62, 62, "Heat Wipe (6200 RPM) overdrive");
                     break;
                 case FanMode.Max:
                     int maxLvl = IsEme ? 57 : Math.Min(48, P.Curve.Ceiling);
-                    WriteLevels(maxLvl, maxLvl, IsEme ? "Max fan (EME 5700 RPM)" : "Max fan (4800 RPM cap)");
+                    WriteLevels(maxLvl, maxLvl, IsEme ? "Max fan (Unleashed 5700 RPM)" : "Max fan (4800 RPM cap)");
                     break;
                 case FanMode.Manual:
                     MaxFan(false, "Max fan off");
@@ -1081,7 +1083,7 @@ namespace Ohman {
         }
         public void SetFan(FanMode mode, int f1, int f2, bool announce) {
             if (OnBattery && !IsEme && (mode == FanMode.Manual || mode == FanMode.Max || mode == FanMode.Custom || mode == FanMode.Turbo6200)) {
-                Say("Fan control on battery requires EME mode");
+                Say("Fan control on battery requires Unleashed mode");
                 Changed();
                 return;
             }
@@ -1096,7 +1098,7 @@ namespace Ohman {
             S.Save();
             if ((Emergency71Active || GuardActive) && mode != FanMode.Max) { Say("Thermal guard is holding max fan; " + Choice.Fan[Choice.Of(mode)] + " resumes when cool"); Changed(); return; }
             lock (applySync) { ApplyFanCore(); lastFanWrite = DateTime.Now; }
-            if (announce) Say(mode == FanMode.Turbo6200 ? "6200 RPM Overdrive active" : mode == FanMode.Max ? "Max fan" : mode == FanMode.Manual ? "Fans " + Rpm(S.Fan1) + " / " + Rpm(S.Fan2) : mode == FanMode.Custom ? "Fans on your curve" : "Fans auto");
+            if (announce) Say(mode == FanMode.Turbo6200 ? "Heat Wipe (6200 RPM) active" : mode == FanMode.Max ? "Max fan" : mode == FanMode.Manual ? "Fans " + Rpm(S.Fan1) + " / " + Rpm(S.Fan2) : mode == FanMode.Custom ? "Fans on your curve" : "Fans auto");
             Changed();
         }
         public void ToggleMaxFan() { SetFan(S.Fan == FanMode.Max ? fanBeforeMax : FanMode.Max, S.Fan1, S.Fan2, false); }

@@ -70,7 +70,6 @@ namespace Ohman {
         StackPanel navBottom;
         ColorSource accentSrc;
         SolidColorBrush accent;
-        int memTrimTicks = 0;
         // keyboard remapping
         Dictionary<uint, uint> remapTable = new Dictionary<uint, uint>();
         bool capturingSrc, capturingDst;
@@ -139,7 +138,7 @@ namespace Ohman {
         ToggleButton tgSuppress, tgHotkeys, tgAutostart, tgEcoBattery, tgSyncPower, tgLowHzBattery, tgTrayTemp, tgGuard, tgUpdateAuto;
         ToggleButton tgOverlayShow, tgOverlayPin;
         TextBlock txtGuardSub, txtMaxCoolSub, txtKeyCmdHint;
-        Button btnClose, btnMinimize, btnMaximize, btnCloseWin;
+        Button btnMinimize, btnMaximize, btnCloseWin;
         Border toast;
         TextBlock txtToast;
         readonly List<WF.ToolStripMenuItem> trayHz = new List<WF.ToolStripMenuItem>();
@@ -170,21 +169,13 @@ namespace Ohman {
             "Windows efficiency mode · GPU base power",
             "Default thermal policy · GPU boost",
             "Performance thermal policy · GPU max",
-            "Extreme Mode · Unrestricted battery fan control & max cooling"
+            "Unleashed Mode · Unrestricted battery fan control & max cooling"
         };
 
         const int WM_HOTKEY = 0x0312, WH_KEYBOARD_LL = 13, WM_KEYDOWN = 0x0100, WM_KEYUP = 0x0101, WM_SYSKEYDOWN = 0x0104, WM_SYSKEYUP = 0x0105;
         const uint MOD_ALT = 1, MOD_CONTROL = 2, MOD_SHIFT = 4, MOD_WIN = 8, VK_F11 = 0x7A;   // not F12: Windows reserves it for the debugger
         const int VK_SHIFT = 0x10, VK_CONTROL = 0x11, VK_MENU = 0x12, VK_LWIN = 0x5B, VK_RWIN = 0x5C;
         delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
-        [StructLayout(LayoutKind.Sequential)]
-        struct KBDLLHOOKSTRUCT {
-            public uint vkCode;
-            public uint scanCode;
-            public uint flags;
-            public uint time;
-            public UIntPtr dwExtraInfo;
-        }
         [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint vk);
         [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
         [DllImport("user32.dll")] static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -196,22 +187,12 @@ namespace Ohman {
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr wp, IntPtr lp);
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
-        [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr h, IntPtr min, IntPtr max);
-
 
         public static void TrimMemory() {
-            try {
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
-                GC.WaitForPendingFinalizers();
-                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
-                SetProcessWorkingSetSize(Process.GetCurrentProcess().Handle, new IntPtr(-1), new IntPtr(-1));
-            } catch { }
+            try { GC.Collect(2, GCCollectionMode.Optimized, false); } catch { }
         }
 
-        public MainWindow(Engine engine, Sensors s, string screenshot, bool settingsOpen)
-            : this(engine, s, null, screenshot, settingsOpen) { }
-
-        public MainWindow(Engine engine, Sensors s, ProcessMonitor pm, string screenshot, bool settingsOpen) {
+        public MainWindow(Engine engine, Sensors s, string screenshot, bool settingsOpen) {
             E = engine;
             sensors = s;
             screenshotPath = screenshot;
@@ -278,8 +259,6 @@ namespace Ohman {
             IsVisibleChanged += delegate { PollRate(); if (IsVisible) ReadHardwareAsync(); };
             LocationChanged += delegate { if (IsVisible && WindowState == WindowState.Normal && Left > -30000 && !morphing) { E.S.WinX = (int)Left; E.S.WinY = (int)Top; } };
             KeyDown += delegate(object o, KeyEventArgs ke) { if (ke.Key == Key.Escape && !(Keyboard.FocusedElement is TextBox)) HideToTray(); };
-            MouseEnter += delegate { Ui.Fade(btnClose, 1, 140); };
-            MouseLeave += delegate { Ui.Fade(btnClose, 0, 200); };
 
             // Only drives things you can see, so it runs only while you can see them (PollRate starts and stops it).
             uiTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -291,9 +270,6 @@ namespace Ohman {
                         if (E.S.Fan == FanMode.Max) UpdateMaxBlock();
                         if (E.S.Fan == FanMode.Turbo6200) UpdateTurbo6200Block();
                     }
-                } else if (++memTrimTicks >= 30) {
-                    memTrimTicks = 0;
-                    TrimMemory();
                 }
             };
             PollRate();
@@ -329,7 +305,7 @@ namespace Ohman {
             railPillT = (TranslateTransform)railPill.RenderTransform;
             logoHost = F<FrameworkElement>("LogoHost");
             F<Border>("Mark").Background = accentSrc.MakeGradient();
-            scroll = F<ScrollViewer>("Scroll");
+            scroll = F<ScrollViewer>("MainScroll");
             pageHost = F<Grid>("PageHost");
             pages[0] = F<FrameworkElement>("PageHome");
             pages[1] = F<FrameworkElement>("PageFans");
@@ -482,7 +458,6 @@ namespace Ohman {
             btnLog = F<TextBlock>("BtnLog");
             btnExit = F<TextBlock>("BtnExit");
             txtDiag = F<TextBlock>("TxtDiag");
-            btnClose = F<Button>("BtnClose");
             btnMinimize = F<Button>("BtnMinimize");
             btnMaximize = F<Button>("BtnMaximize");
             btnCloseWin = F<Button>("BtnCloseWin");
@@ -518,9 +493,9 @@ namespace Ohman {
             if (slFan2 != null) slFan2.Maximum = maxLevel;
             if (txtTableMaxNote != null) {
                 if (E.S.Fan == FanMode.Turbo6200) {
-                    txtTableMaxNote.Text = "⚡ 6,200 RPM Overdrive: Fan ceiling unlocked to 6,200 RPM (129.2%).";
+                    txtTableMaxNote.Text = "⚡ Heat Wipe Overdrive: Fan ceiling unlocked to 6,200 RPM (129.2%).";
                 } else if (E.IsEme) {
-                    txtTableMaxNote.Text = "⚡ EME Extreme Mode: Fan ceiling unlocked up to 5,700 RPM (118.75%).";
+                    txtTableMaxNote.Text = "⚡ Unleashed Mode: Fan ceiling unlocked up to 5,700 RPM (118.75%).";
                 } else if (E.Supports5700Rpm) {
                     txtTableMaxNote.Text = "Hardware validated: fan speeds supported up to 5,700 RPM (118.75%).";
                 } else {
@@ -632,7 +607,7 @@ namespace Ohman {
         }
 
         void BuildFans() {
-            fanSeg = new Seg(Choice.Fan, new[] { "This model's own curve", "Both fans at full speed", "Your own curve, remembered per mode", "Fixed levels, held", "Direct 6,200 RPM hardware overdrive" }, null, Seg.Kind.Page);
+            fanSeg = new Seg(Choice.Fan, new[] { "This model's own curve", "Both fans at full speed", "Your own curve, remembered per mode", "Fixed levels, held", "Heat Wipe: Direct 6,200 RPM hardware thermal overdrive" }, null, Seg.Kind.Page);
             F<Border>("FanSegHost").Child = fanSeg;
             fanSeg.Picked += delegate(int i) {
                 FanMode m = Choice.FanModes[i];
@@ -865,13 +840,17 @@ namespace Ohman {
                 });
             };
 
-            // the wheel moves a fixed, small distance and eases there; the default jumps three "lines" of a very tall panel
+            // the wheel and two-finger touchpad gestures move smoothly; skip handling when the page doesn't scroll
             scroll.PreviewMouseWheel += delegate(object o, MouseWheelEventArgs e) {
+                if (scroll.ScrollableHeight <= 0) return;
                 e.Handled = true;
-                scrollTo = Math.Max(0, Math.Min(scroll.ScrollableHeight, scrollTo - e.Delta / 120.0 * 54));
+                scrollTo = Math.Max(0, Math.Min(scroll.ScrollableHeight, scrollTo - e.Delta / 120.0 * 64));
                 if (!scrolling) { scrolling = true; CompositionTarget.Rendering += ScrollTick; }
             };
-            scroll.ScrollChanged += delegate { if (!scrolling) scrollTo = scroll.VerticalOffset; };
+            scroll.ScrollChanged += delegate {
+                if (!scrolling) scrollTo = scroll.VerticalOffset;
+                else if (scrollTo > scroll.ScrollableHeight) scrollTo = scroll.ScrollableHeight;
+            };
         }
         double scrollTo;
         bool scrolling;
@@ -1124,7 +1103,6 @@ namespace Ohman {
                         me.Handled = true;
                     } else if (me.LeftButton == MouseButtonState.Pressed) Drag();
                 };
-            btnClose.Click += delegate { HideToTray(); };
             if (btnCloseWin != null) btnCloseWin.Click += delegate { HideToTray(); };
             if (btnMinimize != null) btnMinimize.Click += delegate { WindowState = WindowState.Minimized; };
             if (btnMaximize != null) btnMaximize.Click += delegate { ToggleMaximize(); };
@@ -1150,9 +1128,10 @@ namespace Ohman {
             for (int i = 0; i < nav.Length; i++) nav[i].SetSelected(i == (int)p);
             if (p == Page.Keyboard) ApplyEditorState();
             else if (wasKbd) RefreshLighting();
+            if (scrolling) { scrolling = false; CompositionTarget.Rendering -= ScrollTick; }
+            scroll.ScrollToTop();
+            scrollTo = 0;
             if (p == Page.Settings) {
-                scroll.ScrollToTop();
-                scrollTo = 0;
                 UpdateKeyStatus();
                 UpdateUpdateRow();
                 txtMachine.Text = E.Hw.IsDemo && screenshotPath == null ? "simulated hardware" : (E.BiosOk ? "board " + E.Board : "firmware unavailable");
@@ -1645,11 +1624,11 @@ namespace Ohman {
                         if (E.IsEme) {
                             batteryFanBanner.Background = Ui.Brush(Ui.Col("#26FF1E27"));
                             txtBatteryFanBanner.Foreground = Ui.Brush(Ui.Col("#FF6B72"));
-                            txtBatteryFanBanner.Text = "⚡ EME Active: Battery fan control unrestricted. High fan speeds reduce battery runtime.";
+                            txtBatteryFanBanner.Text = "⚡ Unleashed Active: Battery fan control unrestricted. High fan speeds reduce battery runtime.";
                         } else {
                             batteryFanBanner.Background = Ui.Brush(Ui.Col("#26FFB547"));
                             txtBatteryFanBanner.Foreground = Ui.Brush(Ui.Col("#FFD580"));
-                            txtBatteryFanBanner.Text = "🔋 Battery fan lock: Firmware DC curve active. Switch to EME mode to enable manual fan control.";
+                            txtBatteryFanBanner.Text = "🔋 Battery fan lock: Firmware DC curve active. Switch to Unleashed mode to enable manual fan control.";
                         }
                     } else {
                         batteryFanBanner.Visibility = Visibility.Collapsed;
@@ -1708,8 +1687,8 @@ namespace Ohman {
                 txtFanApplied.Text = "Loud" + (ShowChassis(lastBiosTemp) ? " · ambient " + lastBiosTemp + "°" : "");
                 txtFanRight.Text = "Ctrl+Alt+M toggles";
             } else if (S.Fan == FanMode.Turbo6200) {
-                txtFanApplied.Text = "Overdrive (6,200 RPM)" + (ShowChassis(lastBiosTemp) ? " · ambient " + lastBiosTemp + "°" : "");
-                txtFanRight.Text = "In-app dedicated overdrive mode";
+                txtFanApplied.Text = "Heat Wipe (6,200 RPM)" + (ShowChassis(lastBiosTemp) ? " · ambient " + lastBiosTemp + "°" : "");
+                txtFanRight.Text = "In-app dedicated thermal wipe mode";
             } else {
                 txtFanApplied.Text = E.GuardActive ? "Thermal guard: max fan until cool" : "Applied to " + E.ModeName;
                 txtFanRight.Text = "CPU " + (double.IsNaN(E.CpuTemp) ? "--" : E.CpuTemp.ToString("0") + "°") + " · GPU " + (double.IsNaN(E.GpuTemp) ? "--" : E.GpuTemp.ToString("0") + "°");
@@ -2174,7 +2153,7 @@ namespace Ohman {
             if (E.Learning) return;
             bool learned = E.S.KeyId != 0, seen = E.LastEventTime != DateTime.MinValue;
             bool known = learned || seen || (E.P.Verified && E.KeyId != 0);
-            keyDot.Fill = Ui.Brush(known ? Ui.Ok : Ui.Warn);
+            keyDot.Fill = known ? Ui.OkBrush : Ui.WarnBrush;
             txtKeyInfo.Text = learned ? "OMEN key learned" : known ? "OMEN key auto-detected" : "OMEN key not detected";
             btnLearn.Text = known ? "Relearn" : "Learn";
         }
@@ -2254,12 +2233,12 @@ namespace Ohman {
         bool EnsureEmeConfirmed() {
             if (E.S.EmeConfirmed) return true;
             var res = MessageBox.Show(
-                "Extreme Mode (EME) enables full manual fan control and maximum speeds while running on battery power.\n\n" +
+                "Unleashed Mode enables full manual fan control and maximum speeds while running on battery power.\n\n" +
                 "• High fan speeds on battery will increase power consumption and reduce battery runtime.\n" +
                 "• Fan noise will increase accordingly.\n" +
                 "• Hardware thermal safeguards remain active.\n\n" +
-                "Do you wish to enable Extreme Mode?",
-                "Enable Extreme Mode (EME)?",
+                "Do you wish to enable Unleashed Mode?",
+                "Enable Unleashed Mode?",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
             if (res != MessageBoxResult.Yes) return false;
@@ -2351,12 +2330,12 @@ namespace Ohman {
 
         void UpdateFooter() {
             txtFoot.Foreground = Ui.Foot;
-            if (E.Hw.IsDemo && screenshotPath == null) { dotHb.Fill = Ui.Brush(Ui.Warn); txtFoot.Text = "Demo · run as administrator"; return; }
-            if (!E.BiosOk) { dotHb.Fill = Ui.Brush(Ui.Danger); txtFoot.Text = "Firmware unavailable"; return; }
-            if (E.GuardActive) { dotHb.Fill = Ui.Brush(Ui.Danger); txtFoot.Foreground = Ui.Brush(Ui.Danger); txtFoot.Text = "Thermal guard · ambient " + E.GuardChassis + "°"; return; }
+            if (E.Hw.IsDemo && screenshotPath == null) { dotHb.Fill = Ui.WarnBrush; txtFoot.Text = "Demo · run as administrator"; return; }
+            if (!E.BiosOk) { dotHb.Fill = Ui.DangerBrush; txtFoot.Text = "Firmware unavailable"; return; }
+            if (E.GuardActive) { dotHb.Fill = Ui.DangerBrush; txtFoot.Foreground = Ui.DangerBrush; txtFoot.Text = "Thermal guard · ambient " + E.GuardChassis + "°"; return; }
             double age = (DateTime.Now - E.LastHeartbeat).TotalSeconds;
             bool fresh = E.LastHeartbeat != DateTime.MinValue && age < E.S.HeartbeatSec * 2.5;
-            dotHb.Fill = Ui.Brush(fresh ? Ui.Ok : Ui.Warn);
+            dotHb.Fill = fresh ? Ui.OkBrush : Ui.WarnBrush;
             // A firmware without the fan table reports no count; saying "-1 fans" is worse than saying nothing.
             txtFoot.Text = ShortModel() + (E.FanCount > 0 ? " · " + E.FanCount + " fans" : "");
             txtFoot.ToolTip = "Ohman is driving this laptop's firmware" + (fresh ? ", last refreshed " + E.LastHeartbeat.ToString("HH:mm:ss") : "; the refresh is overdue");
@@ -2395,26 +2374,29 @@ namespace Ohman {
             }
             txtFootRight.Text = s.BatteryPercent >= 0 && s.BatteryPercent <= 100 ? (s.OnBattery ? "Battery " : "AC · ") + s.BatteryPercent + "%" : "";
         }
-        Brush TempBrush(double t) { return double.IsNaN(t) ? Ui.TextB : t >= E.P.Guard.CpuHot ? Ui.Brush(Ui.Danger) : t >= E.P.Guard.WarnAt ? Ui.Brush(Ui.Warn) : Ui.TextB; }
+        Brush TempBrush(double t) { return double.IsNaN(t) ? Ui.TextB : t >= E.P.Guard.CpuHot ? Ui.DangerBrush : t >= E.P.Guard.WarnAt ? Ui.WarnBrush : Ui.TextB; }
 
         void ReadHardwareAsync() {
             if (reading || (!E.BiosOk && !E.Hw.IsDemo)) return;
+            bool needTemp = IsVisible;
             reading = true;
             ThreadPool.QueueUserWorkItem(delegate {
                 int[] f = null;
                 int t = -1;
                 try { f = E.Hw.GetFanLevels(); } catch (Exception ex) { Log.Write("read fans: " + ex.Message); }
-                try { t = E.Hw.GetTemperature(); } catch { }
+                if (needTemp) try { t = E.Hw.GetTemperature(); } catch { }
                 Dispatcher.BeginInvoke((Action)delegate {
                     if (f != null) {
                         lastFans = f;
-                        bigFan1.Text = Level(f[0]);
-                        bigFan2.Text = Level(f[1]);
-                        UpdateFanStatus();
-                        if (cur == Page.Fans) UpdateMaxBlock();
+                        if (needTemp) {
+                            bigFan1.Text = Level(f[0]);
+                            bigFan2.Text = Level(f[1]);
+                            UpdateFanStatus();
+                            if (cur == Page.Fans) UpdateMaxBlock();
+                        }
                         if (overlay != null) overlay.UpdateFans(f);
                     }
-                    if (t >= 0 && t != lastBiosTemp) {
+                    if (needTemp && t >= 0 && t != lastBiosTemp) {
                         lastBiosTemp = t;
                         GpuLevel g = E.EffectiveGpu;
                         txtHomeStatus.Text = (E.P.HasGpuPower ? (g == GpuLevel.Max ? "GPU max" : g == GpuLevel.Boost ? "GPU boost" : "GPU base") : E.P.HasPowerGain ? E.CurrentTdp + " W" : "")
@@ -2447,7 +2429,7 @@ namespace Ohman {
             Bg(delegate { E.SetMode(next, false); });
         }
         void CycleOverlayWithFlash() {
-            // Win + O cycles strictly between the 4 operating modes (Quiet, Balanced, Performance, EME)
+            // Win + O cycles strictly between the 4 operating modes (Quiet, Balanced, Performance, Unleashed)
             int next = (E.ModeIndex + 1) % 4;
             if (next == 3 && !EnsureEmeConfirmed()) return;
             is5700Active = false;
@@ -2470,7 +2452,7 @@ namespace Ohman {
 
                 is5700Active = true;
                 SelectMode(3, true);
-                Flash("5700 RPM Fans", TempSummary() + " \u00B7 EME cooling locked to 5,700 RPM", 4, 5000);
+                Flash("5700 RPM Fans", TempSummary() + " \u00B7 Unleashed cooling locked to 5,700 RPM", 4, 5000);
                 Bg(delegate {
                     if (!E.IsEme) E.SetMode(3, false);
                     E.SetFan(FanMode.Manual, 57, 57, false);
@@ -2579,97 +2561,99 @@ namespace Ohman {
         IntPtr GlobalKeyHook(int nCode, IntPtr wParam, IntPtr lParam) {
             if (nCode >= 0) {
                 int msg = wParam.ToInt32();
-                var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
-                uint vk = info.vkCode;
+                if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN || msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                    uint vk = (uint)Marshal.ReadInt32(lParam);
+                    uint flags = (uint)Marshal.ReadInt32(lParam, 8);
 
-                // 1. Key capture for Remapping UI
-                if (capturingSrc && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
-                    capturingSrc = false;
-                    selectedSrcVk = vk;
-                    Dispatcher.BeginInvoke((Action)delegate {
-                        if (txtSrcKeyName != null) {
-                            txtSrcKeyName.Text = KeyName(vk);
-                            txtSrcKeyName.Foreground = Ui.TextHi;
-                        }
-                    });
-                    return (IntPtr)1;
-                }
-                if (capturingDst && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
-                    capturingDst = false;
-                    selectedDstVk = vk;
-                    Dispatcher.BeginInvoke((Action)delegate {
-                        if (txtDstKeyName != null) {
-                            txtDstKeyName.Text = KeyName(vk);
-                            txtDstKeyName.Foreground = Ui.TextHi;
-                        }
-                    });
-                    return (IntPtr)1;
-                }
-
-                // 2. Keystroke Remapping (only for un-injected hardware keystrokes)
-                if ((info.flags & 0x10) == 0 && E.S.KeyRemapEnabled && remapTable.Count > 0) {
-                    uint targetVk;
-                    if (remapTable.TryGetValue(vk, out targetVk)) {
-                        bool isExt = (info.flags & 1) != 0 || targetVk == 0x25 || targetVk == 0x26 || targetVk == 0x27 || targetVk == 0x28 || targetVk == 0x2D || targetVk == 0x2E || targetVk == 0xA3 || targetVk == 0xA5;
-                        uint extFlag = isExt ? 1u : 0u;
-                        if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
-                            keybd_event((byte)targetVk, 0, extFlag, IntPtr.Zero);
-                        } else if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
-                            keybd_event((byte)targetVk, 0, extFlag | 2u, IntPtr.Zero);
-                        }
-                        return (IntPtr)1;
-                    }
-                }
-
-                // 3. Hotkeys & Input Recovery
-                if (vk == (uint)'K' && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
-                    bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-                    bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                    if (ctrlDown && altDown) {
-                        Dispatcher.BeginInvoke((Action)delegate { SetKeyboardLocked(!keyboardLocked); });
-                        return (IntPtr)1;
-                    }
-                }
-                if (keyboardLocked) {
-                    bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-                    bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                    if ((vk == (uint)'O' && winDown) || (vk == (uint)'Q' && altDown)) {
-                        // pass to mode hotkeys below
-                    } else {
-                        return (IntPtr)1; // Drop keypress while keyboard is locked
-                    }
-                }
-
-                // 4. Hotkeys
-                if (E.S.Hotkeys) {
-                    if (vk == (uint)'O') {
-                        if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
-                            winOHeld = false;
-                        } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
-                            bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-                            bool otherMods = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0 || (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-                            if (winDown && !otherMods) {
-                                if (!winOHeld) {
-                                    winOHeld = true;
-                                    Dispatcher.BeginInvoke((Action)CycleOverlayWithFlash);
-                                }
-                                return (IntPtr)1;
+                    // 1. Key capture for Remapping UI
+                    if (capturingSrc && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
+                        capturingSrc = false;
+                        selectedSrcVk = vk;
+                        Dispatcher.BeginInvoke((Action)delegate {
+                            if (txtSrcKeyName != null) {
+                                txtSrcKeyName.Text = KeyName(vk);
+                                txtSrcKeyName.Foreground = Ui.TextHi;
                             }
+                        });
+                        return (IntPtr)1;
+                    }
+                    if (capturingDst && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
+                        capturingDst = false;
+                        selectedDstVk = vk;
+                        Dispatcher.BeginInvoke((Action)delegate {
+                            if (txtDstKeyName != null) {
+                                txtDstKeyName.Text = KeyName(vk);
+                                txtDstKeyName.Foreground = Ui.TextHi;
+                            }
+                        });
+                        return (IntPtr)1;
+                    }
+
+                    // 2. Keystroke Remapping (only for un-injected hardware keystrokes)
+                    if ((flags & 0x10) == 0 && E.S.KeyRemapEnabled && remapTable.Count > 0) {
+                        uint targetVk;
+                        if (remapTable.TryGetValue(vk, out targetVk)) {
+                            bool isExt = (flags & 1) != 0 || targetVk == 0x25 || targetVk == 0x26 || targetVk == 0x27 || targetVk == 0x28 || targetVk == 0x2D || targetVk == 0x2E || targetVk == 0xA3 || targetVk == 0xA5;
+                            uint extFlag = isExt ? 1u : 0u;
+                            if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
+                                keybd_event((byte)targetVk, 0, extFlag, IntPtr.Zero);
+                            } else {
+                                keybd_event((byte)targetVk, 0, extFlag | 2u, IntPtr.Zero);
+                            }
+                            return (IntPtr)1;
                         }
-                    } else if (vk == (uint)'Q') {
-                        if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
-                            fnQHeld = false;
-                        } else if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) {
-                            bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-                            bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-                            bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-                            bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-                            if (altDown && !ctrlDown && !winDown && !shiftDown) {
-                                if (!fnQHeld) {
-                                    fnQHeld = true;
-                                    Dispatcher.BeginInvoke((Action)Toggle5700WithFlash);
+                    }
+
+                    // 3. Hotkeys & Input Recovery
+                    if (vk == (uint)'K' && (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)) {
+                        bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                        bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                        if (ctrlDown && altDown) {
+                            Dispatcher.BeginInvoke((Action)delegate { SetKeyboardLocked(!keyboardLocked); });
+                            return (IntPtr)1;
+                        }
+                    }
+                    if (keyboardLocked) {
+                        bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                        bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                        if ((vk == (uint)'O' && winDown) || (vk == (uint)'Q' && altDown)) {
+                            // pass to mode hotkeys below
+                        } else {
+                            return (IntPtr)1; // Drop keypress while keyboard is locked
+                        }
+                    }
+
+                    // 4. Hotkeys
+                    if (E.S.Hotkeys) {
+                        if (vk == (uint)'O') {
+                            if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                                winOHeld = false;
+                            } else {
+                                bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                                bool otherMods = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0 || (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                                if (winDown && !otherMods) {
+                                    if (!winOHeld) {
+                                        winOHeld = true;
+                                        Dispatcher.BeginInvoke((Action)CycleOverlayWithFlash);
+                                    }
+                                    return (IntPtr)1;
                                 }
-                                return (IntPtr)1;
+                            }
+                        } else if (vk == (uint)'Q') {
+                            if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                                fnQHeld = false;
+                            } else {
+                                bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                                bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                                bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                                bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                                if (altDown && !ctrlDown && !winDown && !shiftDown) {
+                                    if (!fnQHeld) {
+                                        fnQHeld = true;
+                                        Dispatcher.BeginInvoke((Action)Toggle5700WithFlash);
+                                    }
+                                    return (IntPtr)1;
+                                }
                             }
                         }
                     }

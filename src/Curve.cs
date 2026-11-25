@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Ohman {
 
@@ -23,6 +24,11 @@ namespace Ohman {
         static Typeface face;
         static readonly Brush GridH = Ui.Brush("#292623"), GridV = Ui.Brush("#211D1A"), Axis = Ui.Brush("#847F7B"),
             Live = Ui.Brush("#847F7B"), Bg = Ui.Brush("#161311"), PillBg = Ui.Brush("#312D2A"), PillFg = Ui.Brush("#EDEAE8");
+        static readonly Pen GridHPen = Freeze(new Pen(GridH, 1)), GridVPen = Freeze(new Pen(GridV, 1)),
+            LiveLinePen = Freeze(new Pen(Live, 1) { DashStyle = new DashStyle(new double[] { 3, 4 }, 0) }),
+            LiveDotPen = Freeze(new Pen(Ui.Brush("#FCFAF9"), 2));
+        static Pen Freeze(Pen p) { p.Freeze(); return p; }
+        static FormattedText[] pctLabels;
 
         protected override Size MeasureOverride(Size a) { return new Size(double.IsInfinity(a.Width) ? 400 : a.Width, PillH + PlotH + AxisGap + AxisH); }
         double X0 { get { return LabelW + LabelGap; } }
@@ -33,23 +39,28 @@ namespace Ohman {
         public void Repaint() { InvalidateVisual(); }
         public CurveView() { IsVisibleChanged += delegate { Animate(IsVisible); }; }
 
-        // the live dot breathes once every two seconds, so a still screenshot and a running app look the same but the
-        // running one shows the reading is alive
+        // the live dot breathes once every 2.2 seconds at a lightweight ~12.5 Hz so the Fans page costs virtually zero CPU
         bool pulsing;
-        TimeSpan pulseStart;
+        DispatcherTimer pulseTimer;
+        DateTime pulseStart;
         void Animate(bool on) {
             if (on == pulsing) return;
             pulsing = on;
-            if (on) { pulseStart = TimeSpan.Zero; CompositionTarget.Rendering += Pulse; } else CompositionTarget.Rendering -= Pulse;
+            if (on) {
+                pulseStart = DateTime.UtcNow;
+                if (pulseTimer == null) {
+                    pulseTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(80) };
+                    pulseTimer.Tick += Pulse;
+                }
+                pulseTimer.Start();
+            } else if (pulseTimer != null) {
+                pulseTimer.Stop();
+            }
         }
         double pulseT;
         void Pulse(object o, EventArgs e) {
-            var re = e as RenderingEventArgs;
-            if (re == null) return;
-            if (pulseStart == TimeSpan.Zero) pulseStart = re.RenderingTime;
-            double t = (re.RenderingTime - pulseStart).TotalSeconds % 2.2;
             if (LiveLevel <= 0 || double.IsNaN(LiveTemp)) return;
-            pulseT = t;
+            pulseT = (DateTime.UtcNow - pulseStart).TotalSeconds % 2.2;
             InvalidateVisual();
         }
 
@@ -57,19 +68,23 @@ namespace Ohman {
 
         protected override void OnRender(DrawingContext dc) {
             if (face == null) face = new Typeface(Ui.MonoFont, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            if (pctLabels == null) {
+                int[] pcts = { 100, 75, 50, 25, 0 };
+                pctLabels = new FormattedText[pcts.Length];
+                for (int i = 0; i < pcts.Length; i++) pctLabels[i] = Text(pcts[i].ToString(CultureInfo.InvariantCulture), 10, Axis);
+            }
             Color ac = Ui.Accent.Color;
             var accent = Ui.Accent;
-            var gridH = new Pen(GridH, 1);
-            var gridV = new Pen(GridV, 1);
-            foreach (int pct in new[] { 100, 75, 50, 25, 0 }) {
-                double y = Math.Round(Y(Ceiling * pct / 100.0)) + 0.5;
-                dc.DrawLine(gridH, new Point(X0, y), new Point(X1, y));
-                var ft = Text(pct.ToString(CultureInfo.InvariantCulture), 10, Axis);
+            int[] pctVals = { 100, 75, 50, 25, 0 };
+            for (int i = 0; i < pctVals.Length; i++) {
+                double y = Math.Round(Y(Ceiling * pctVals[i] / 100.0)) + 0.5;
+                dc.DrawLine(GridHPen, new Point(X0, y), new Point(X1, y));
+                var ft = pctLabels[i];
                 dc.DrawText(ft, new Point(LabelW - ft.Width, Math.Min(PillH + PlotH - ft.Height, Math.Max(PillH, y - ft.Height / 2))));
             }
             for (int i = 0; i < Temps.Length; i++) {
                 double x = Math.Round(X(Temps[i])) + 0.5;
-                dc.DrawLine(gridV, new Point(x, PillH), new Point(x, PillH + PlotH));
+                dc.DrawLine(GridVPen, new Point(x, PillH), new Point(x, PillH + PlotH));
                 var ft = Text(Temps[i] + "°", 10.5, Axis);
                 double tx = i == 0 ? X0 : i == Temps.Length - 1 ? X1 - ft.Width : x - ft.Width / 2;
                 dc.DrawText(ft, new Point(tx, PillH + PlotH + AxisGap));
@@ -92,18 +107,18 @@ namespace Ohman {
             if (!ReadOnly)
                 for (int i = 0; i < Temps.Length; i++) {
                     double r = (i == drag || i == hover) ? 6 : 4.5;
-                    dc.DrawEllipse(Bg, new Pen(accent, 2.5), new Point(X(Temps[i]), Y(Levels[i])), r, r);
+                    dc.DrawEllipse(Bg, linePen, new Point(X(Temps[i]), Y(Levels[i])), r, r);
                 }
             // where the chips are right now: a line down the graph, a dot on the curve, and the reading above it
             if (double.IsNaN(LiveTemp) || LiveLevel <= 0) return;
             double lx = Math.Round(X(Math.Max(Temps[0], Math.Min(Temps[Temps.Length - 1], LiveTemp)))) + 0.5;
             double ly = Y(Math.Max(Floor, Math.Min(Ceiling, LiveLevel)));
-            dc.DrawLine(new Pen(Live, 1) { DashStyle = new DashStyle(new double[] { 3, 4 }, 0) }, new Point(lx, PillH), new Point(lx, PillH + PlotH));
+            dc.DrawLine(LiveLinePen, new Point(lx, PillH), new Point(lx, PillH + PlotH));
             if (pulsing) {
                 double k = Math.Min(1, pulseT / 1.1);                                   // one ring every 2.2 s, gone by half way
                 if (k < 1) dc.DrawEllipse(null, new Pen(Ui.Brush(Color.FromArgb((byte)(0x50 * (1 - k)), ac.R, ac.G, ac.B)), 1.5), new Point(lx, ly), 5 + 9 * k, 5 + 9 * k);
             }
-            dc.DrawEllipse(accent, new Pen(Ui.Brush("#FCFAF9"), 2), new Point(lx, ly), 4, 4);
+            dc.DrawEllipse(accent, LiveDotPen, new Point(lx, ly), 4, 4);
             var label = Text((int)Math.Round(LiveTemp) + "° → " + (int)Math.Round(100.0 * LiveLevel / Ceiling) + "%", 10, PillFg);
             double pw = label.Width + 14, px = Math.Max(X0, Math.Min(X1 - pw, lx - pw / 2));
             dc.DrawRoundedRectangle(PillBg, null, new Rect(px, 0, pw, 16), 5, 5);

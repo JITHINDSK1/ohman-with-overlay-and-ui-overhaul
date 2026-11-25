@@ -13,6 +13,7 @@ using System.Windows.Interop;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace Ohman {
 
@@ -42,18 +43,37 @@ namespace Ohman {
         // status / feedback line
         TextBlock statusTxt;
 
-        // -- Win32 topmost / dragging ----------------------------------------
+        // -- Win32 topmost / dragging / non-activating HUD --------------------
         bool     pinned, isClosing;
-        IntPtr   hwnd = IntPtr.Zero;
+        IntPtr   hwnd = IntPtr.Zero, fgHook = IntPtr.Zero;
         HwndSource hwndSource;
+        WinEventDelegate fgProc;
+        DispatcherTimer zGuardTimer;
 
+        delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+        [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+        [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+        [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+        [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
+        [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+        [DllImport("user32.dll")] static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
         static readonly IntPtr HWND_TOPMOST   = new IntPtr(-1);
         static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        const int  GWL_EXSTYLE      = -20;
+        const int  WS_EX_TOOLWINDOW = 0x00000080;
+        const int  WS_EX_TOPMOST    = 0x00000008;
+        const int  WS_EX_NOACTIVATE = 0x08000000;
+        const uint GW_HWNDPREV      = 3;
+        const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+        const uint WINEVENT_OUTOFCONTEXT   = 0x0000;
         const uint SWP_NOSIZE     = 0x0001;
         const uint SWP_NOMOVE     = 0x0002;
-        const uint SWP_NOACTIVATE = 0x0010;
         const uint SWP_NOZORDER   = 0x0004;
+        const uint SWP_NOACTIVATE = 0x0010;
+        const int  WM_MOUSEACTIVATE     = 0x0021;
+        const int  MA_NOACTIVATE        = 3;
         const int  WM_WINDOWPOSCHANGING = 0x0046;
 
         [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
@@ -64,12 +84,13 @@ namespace Ohman {
         }
 
         // -- palette ---------------------------------------------------------
-        static readonly Brush BgBrush     = Freeze(new SolidColorBrush(Color.FromArgb(235, 11, 13, 19)));
+        static readonly Brush BgBrush     = Freeze(new SolidColorBrush(Color.FromArgb(228, 13, 15, 20)));
+        static readonly Brush BorderBrush_ = Freeze(new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)));
         static readonly Brush AccentBrush = Freeze(new SolidColorBrush(Color.FromRgb(59, 130, 246)));
         static readonly Brush DimBrush    = Freeze(new SolidColorBrush(Color.FromRgb(148, 163, 184)));
         static readonly Brush WarnBrush   = Freeze(new SolidColorBrush(Color.FromRgb(245, 158, 11)));
-        static readonly Brush SepBrush    = Freeze(new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)));
-        static readonly Brush BtnBgBrush  = Freeze(new SolidColorBrush(Color.FromArgb(40, 255, 255, 255)));
+        static readonly Brush SepBrush    = Freeze(new SolidColorBrush(Color.FromArgb(50, 255, 255, 255)));
+        static readonly Brush BtnBgBrush  = Freeze(new SolidColorBrush(Color.FromArgb(35, 255, 255, 255)));
         static Brush Freeze(SolidColorBrush b) { b.Freeze(); return b; }
 
         static readonly FontFamily UiFont   = new FontFamily("Segoe UI");
@@ -83,11 +104,12 @@ namespace Ohman {
             Title              = "Ohman Overlay";
             WindowStyle        = WindowStyle.None;
             AllowsTransparency = true;
+            Background         = Brushes.Transparent;
             ShowActivated      = false;
             ShowInTaskbar      = false;
+            Focusable          = false;
             ResizeMode         = ResizeMode.NoResize;
             SizeToContent      = SizeToContent.WidthAndHeight;
-            Background         = BgBrush;
             MinWidth           = 160;
 
             if (E.S.OverlayX >= 0) Left = E.S.OverlayX;
@@ -95,8 +117,14 @@ namespace Ohman {
 
             SourceInitialized += delegate {
                 hwnd = new WindowInteropHelper(this).Handle;
+                // Hide completely from Alt+Tab / Task Switcher / Windows app detection, and never steal game focus
+                SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
                 hwndSource = HwndSource.FromHwnd(hwnd);
                 if (hwndSource != null) hwndSource.AddHook(WndProc);
+                fgProc = OnForegroundChanged;
+                try { fgHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, fgProc, 0, 0, WINEVENT_OUTOFCONTEXT); } catch { }
+                zGuardTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(1000) };
+                zGuardTimer.Tick += delegate { if (pinned && IsVisible) EnsureTopmostIfNeeded(); };
                 ApplyPin(E.S.OverlayPin);
             };
             new WindowInteropHelper(this).EnsureHandle();
@@ -113,7 +141,14 @@ namespace Ohman {
             fanPanel.Visibility = Visibility.Collapsed;
             root.Children.Add(fanPanel);
 
-            Content = root;
+            Content = new Border {
+                Background = BgBrush,
+                BorderBrush = BorderBrush_,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(2),
+                Child = root
+            };
 
             sensors.Updated += OnSensors;
             E.StateChanged  += OnEngineState;
@@ -122,6 +157,8 @@ namespace Ohman {
             Closed  += delegate {
                 sensors.Updated -= OnSensors;
                 E.StateChanged  -= OnEngineState;
+                if (zGuardTimer != null) zGuardTimer.Stop();
+                if (fgHook != IntPtr.Zero) { try { UnhookWinEvent(fgHook); } catch { } fgHook = IntPtr.Zero; fgProc = null; }
                 if (hwndSource != null) {
                     try { hwndSource.RemoveHook(WndProc); } catch { }
                     hwndSource = null;
@@ -275,42 +312,38 @@ namespace Ohman {
         void OnApply() {
             if (E.ReadOnly) { SetStatus("Read-only: board not recognised by Ohman", WarnBrush); return; }
             if (!E.CanSetFanLevels) { SetStatus("Fan level writes refused by this firmware", WarnBrush); return; }
-            // Read slider values on the UI thread, then call engine from here (any thread is fine)
-            int f1 = 0, f2 = 0;
-            Dispatcher.Invoke(delegate {
-                int maxLvl = E.IsEme ? Math.Max(57, E.P.Curve.Ceiling) : E.P.Curve.Ceiling;
-                int v1 = (int)sl1.Value, v2 = (int)sl2.Value;
-                f1 = E.IsEme ? (v1 <= 0 ? 0 : Math.Max(E.P.Curve.Floor, Math.Min(maxLvl, v1))) : E.P.Curve.ClampOrOff(v1);
-                f2 = (E.FanCount == 1) ? f1 : (E.IsEme ? (v2 <= 0 ? 0 : Math.Max(E.P.Curve.Floor, Math.Min(maxLvl, v2))) : E.P.Curve.ClampOrOff(v2));
-            });
-            E.SetFan(FanMode.Manual, f1, f2, false);
+            int maxLvl = E.IsEme ? Math.Max(57, E.P.Curve.Ceiling) : E.P.Curve.Ceiling;
+            int v1 = (int)sl1.Value, v2 = (int)sl2.Value;
+            int f1 = E.IsEme ? (v1 <= 0 ? 0 : Math.Max(E.P.Curve.Floor, Math.Min(maxLvl, v1))) : E.P.Curve.ClampOrOff(v1);
+            int f2 = (E.FanCount == 1) ? f1 : (E.IsEme ? (v2 <= 0 ? 0 : Math.Max(E.P.Curve.Floor, Math.Min(maxLvl, v2))) : E.P.Curve.ClampOrOff(v2));
+            System.Threading.Tasks.Task.Run(delegate { E.SetFan(FanMode.Manual, f1, f2, false); });
         }
 
         void OnAuto() {
-            E.SetFan(FanMode.Auto, E.S.Fan1, E.S.Fan2, false);
+            System.Threading.Tasks.Task.Run(delegate { E.SetFan(FanMode.Auto, E.S.Fan1, E.S.Fan2, false); });
         }
 
         void On5700Rpm() {
             if (E.ReadOnly) { SetStatus("Read-only: board not recognised by Ohman", WarnBrush); return; }
             if (!E.CanSetFanLevels) { SetStatus("Fan level writes refused by this firmware", WarnBrush); return; }
             if (!E.S.EmeConfirmed) {
-                bool ok = false;
-                Dispatcher.Invoke(delegate {
-                    var res = MessageBox.Show(
-                        "Extreme Mode (EME) enables full manual fan control and maximum 5,700 RPM speeds, including on battery power.\n\n" +
-                        "• High fan speeds on battery will increase power consumption and reduce battery runtime.\n" +
-                        "• Fan noise will increase accordingly.\n" +
-                        "• Hardware thermal safeguards remain active.\n\n" +
-                        "Do you wish to enable 5700 RPM (EME) mode?",
-                        "Enable 5700 RPM Fans (EME)?",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Warning);
-                    if (res == MessageBoxResult.Yes) { E.S.EmeConfirmed = true; E.S.Save(); ok = true; }
-                });
-                if (!ok) return;
+                var res = MessageBox.Show(
+                    "Unleashed Mode enables full manual fan control and maximum 5,700 RPM speeds, including on battery power.\n\n" +
+                    "• High fan speeds on battery will increase power consumption and reduce battery runtime.\n" +
+                    "• Fan noise will increase accordingly.\n" +
+                    "• Hardware thermal safeguards remain active.\n\n" +
+                    "Do you wish to enable 5700 RPM (Unleashed) mode?",
+                    "Enable 5700 RPM Fans (Unleashed)?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+                if (res != MessageBoxResult.Yes) return;
+                E.S.EmeConfirmed = true;
+                E.S.Save();
             }
-            if (!E.IsEme) E.SetMode(3, false);
-            E.SetFan(FanMode.Manual, 57, 57, false);
+            System.Threading.Tasks.Task.Run(delegate {
+                if (!E.IsEme) E.SetMode(3, false);
+                E.SetFan(FanMode.Manual, 57, 57, false);
+            });
         }
 
         // ====================================================================
@@ -348,7 +381,7 @@ namespace Ohman {
                     ((TextBlock)fanToggleBtn.Child).Text = "FAN CONTROLS \u25b4";
                 }
                 SeedSliders();
-                DoTopmost();
+                EnsureTopmostIfNeeded();
             });
         }
 
@@ -362,7 +395,6 @@ namespace Ohman {
                 cpuTemp.Text = (!double.IsNaN(s.CpuTemp) ? ((int)Math.Round(s.CpuTemp)).ToString() : "--") + "\u00b0C";
                 gpuPct.Text  = (!double.IsNaN(s.GpuLoad) && s.GpuLoad >= 0 ? ((int)Math.Round(s.GpuLoad)).ToString() : "--") + "%";
                 gpuTemp.Text = (!double.IsNaN(s.GpuTemp) ? ((int)Math.Round(s.GpuTemp)).ToString() : "--") + "\u00b0C";
-                DoTopmost();
             });
         }
 
@@ -378,7 +410,8 @@ namespace Ohman {
             else if (E.ReadOnly)           { txt = "Read-only \u2014 board not recognised";       col = WarnBrush; }
             else if (!E.CanSetFanLevels)   { txt = "Firmware refuses fan-level writes";           col = WarnBrush; }
             else switch (E.S.Fan) {
-                case FanMode.Manual: txt = (E.IsEme && (E.S.Fan1 >= 57 || E.S.Fan2 >= 57)) ? "5700 RPM Fans (EME)" : "Manual \u2014 levels held by engine"; col = AccentBrush; break;
+                case FanMode.Turbo6200: txt = "Heat Wipe (6200 RPM)"; col = AccentBrush; break;
+                case FanMode.Manual: txt = (E.IsEme && (E.S.Fan1 >= 57 || E.S.Fan2 >= 57)) ? "5700 RPM Fans (Unleashed)" : "Manual \u2014 levels held by engine"; col = AccentBrush; break;
                 case FanMode.Max:    txt = "Max fan";                             col = WarnBrush;   break;
                 case FanMode.Custom: txt = "Custom curve";                        col = DimBrush;    break;
                 default:             txt = "Auto (firmware curve)";               col = DimBrush;    break;
@@ -425,6 +458,7 @@ namespace Ohman {
 
         public void ApplyPin(bool pin) {
             pinned = pin; base.Topmost = pin;
+            if (zGuardTimer != null) { if (pin) zGuardTimer.Start(); else zGuardTimer.Stop(); }
             if (hwnd != IntPtr.Zero && !isClosing)
                 SetWindowPos(hwnd, pin ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
@@ -434,7 +468,27 @@ namespace Ohman {
                 SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
 
+        void OnForegroundChanged(IntPtr hWinEventHook, uint eventType, IntPtr fgHwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime) {
+            if (pinned && !isClosing && fgHwnd != hwnd) DoTopmost();
+        }
+
+        void EnsureTopmostIfNeeded() {
+            if (!pinned || hwnd == IntPtr.Zero || isClosing) return;
+            // Only call SetWindowPos when a visible topmost window (e.g. borderless/fullscreen game) jumped above us in Z-order
+            if ((GetWindowLong(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) == 0) { DoTopmost(); return; }
+            IntPtr prev = GetWindow(hwnd, GW_HWNDPREV);
+            while (prev != IntPtr.Zero) {
+                if ((GetWindowLong(prev, GWL_EXSTYLE) & WS_EX_TOPMOST) == 0) break;
+                if (IsWindowVisible(prev)) { DoTopmost(); break; }
+                prev = GetWindow(prev, GW_HWNDPREV);
+            }
+        }
+
         IntPtr WndProc(IntPtr h, int msg, IntPtr wParam, IntPtr lParam, ref bool handled) {
+            if (msg == WM_MOUSEACTIVATE) {
+                handled = true;
+                return (IntPtr)MA_NOACTIVATE;
+            }
             if (msg == WM_WINDOWPOSCHANGING && pinned && !isClosing) {
                 try {
                     var wp = (WINDOWPOS)Marshal.PtrToStructure(lParam, typeof(WINDOWPOS));
@@ -470,7 +524,7 @@ namespace Ohman {
                 Padding = new Thickness(12, 3, 12, 3), Margin = new Thickness(4, 0, 4, 0), Cursor = Cursors.Hand
             };
             bdr.Child = new TextBlock { Text = label, Foreground = Brushes.White, FontFamily = UiFont, FontSize = 10, FontWeight = FontWeights.Bold };
-            bdr.MouseLeftButtonDown += (s, e) => { e.Handled = true; System.Threading.Tasks.Task.Run(action); };
+            bdr.MouseLeftButtonDown += (s, e) => { e.Handled = true; action(); };
             return bdr;
         }
 

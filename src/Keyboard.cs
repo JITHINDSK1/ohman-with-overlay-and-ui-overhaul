@@ -166,6 +166,10 @@ namespace Ohman {
         static readonly Dictionary<uint, SolidColorBrush> Brushes_ = new Dictionary<uint, SolidColorBrush>();
         static readonly Color OffCap = Color.FromRgb(0x1F, 0x1C, 0x1A), OffLegend = Color.FromRgb(0x84, 0x7F, 0x7B),
             WinLegend = Color.FromRgb(0xA2, 0x9D, 0x99), MiniOff = Color.FromRgb(0x2B, 0x28, 0x26), Card = Color.FromRgb(0x16, 0x13, 0x11);
+        static readonly Pen SelPen = FreezePen(new Pen(B(Color.FromRgb(0xFC, 0xFA, 0xF9)), 2)),
+            HovPen = FreezePen(new Pen(B(WithA(Colors.White, 0.5)), 2)),
+            KeyEdgePen = FreezePen(new Pen(B(WithA(Colors.Black, 0.22)), 1));
+        static Pen FreezePen(Pen p) { p.Freeze(); return p; }
 
         /// <summary>animate = true eases the drawing toward the new colours (35 % per rendered frame) instead of jumping.</summary>
         public void SetColors(Rgb[] c, bool animate) {
@@ -270,9 +274,9 @@ namespace Ohman {
                 if (anyHover && !hov && !sel) { fill = Mix(Card, fill, 0.32); legend = WithA(legend, 0.45); }
                 dc.DrawRoundedRectangle(B(fill), null, r, radius, radius);
                 if (!Interactive) continue;
-                if (sel) dc.DrawRoundedRectangle(null, new Pen(B(Color.FromRgb(0xFC, 0xFA, 0xF9)), 2), new Rect(r.X + 1, r.Y + 1, Math.Max(0, r.Width - 2), Math.Max(0, r.Height - 2)), radius, radius);
-                else if (hov) dc.DrawRoundedRectangle(null, new Pen(B(WithA(Colors.White, 0.5)), 2), new Rect(r.X + 1, r.Y + 1, Math.Max(0, r.Width - 2), Math.Max(0, r.Height - 2)), radius, radius);
-                else dc.DrawRoundedRectangle(null, new Pen(B(WithA(Colors.Black, 0.22)), 1), new Rect(r.X + 0.5, r.Y + 0.5, Math.Max(0, r.Width - 1), Math.Max(0, r.Height - 1)), radius, radius);
+                if (sel) dc.DrawRoundedRectangle(null, SelPen, new Rect(r.X + 1, r.Y + 1, Math.Max(0, r.Width - 2), Math.Max(0, r.Height - 2)), radius, radius);
+                else if (hov) dc.DrawRoundedRectangle(null, HovPen, new Rect(r.X + 1, r.Y + 1, Math.Max(0, r.Width - 2), Math.Max(0, r.Height - 2)), radius, radius);
+                else dc.DrawRoundedRectangle(null, KeyEdgePen, new Rect(r.X + 0.5, r.Y + 0.5, Math.Max(0, r.Width - 1), Math.Max(0, r.Height - 1)), radius, radius);
                 string label = k.Label.Trim();
                 if (label.Length > 0 && r.Width >= 14) {
                     var ft = new FormattedText(label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, 10, B(legend), 1.0);

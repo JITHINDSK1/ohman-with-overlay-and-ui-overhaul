@@ -34,6 +34,7 @@ namespace Ohman {
         public static readonly Color EcoColor = Col("#36D989"), BalColor = Col("#E32636"), PerfColor = Col("#FF3B4A"), EmeColor = Col("#FF1E27");
         public static readonly Color Warn = Col("#FFB547"), Danger = Col("#FF4D5A"), Ok = Col("#36D989");
         public static readonly Color TelemetryCyan = Col("#32C5F4");
+        public static readonly SolidColorBrush OkBrush = Brush(Ok), WarnBrush = Brush(Warn), DangerBrush = Brush(Danger), CyanBrush = Brush(TelemetryCyan);
         public static Color ModeColor(int i) { return i == 0 ? EcoColor : i == 1 ? BalColor : i == 2 ? PerfColor : EmeColor; }
         /// <summary>c moved t of the way towards towards, in straight sRGB: enough for a short accent ramp.</summary>
         public static Color Mix(Color c, Color towards, double t) {
@@ -147,7 +148,7 @@ namespace Ohman {
     /// <summary>The order of every multiple-choice control, once. The page segment, the tray submenu and the code
     /// that ticks them all index the same arrays, so reordering a choice cannot leave one of them pointing elsewhere.</summary>
     static class Choice {
-        public static readonly string[] Fan = { "Auto", "Max", "Curve", "Manual", "6200 RPM" };
+        public static readonly string[] Fan = { "Auto", "Max", "Curve", "Manual", "Heat Wipe" };
         public static readonly FanMode[] FanModes = { FanMode.Auto, FanMode.Max, FanMode.Custom, FanMode.Manual, FanMode.Turbo6200 };
         public static int Of(FanMode m) { for (int i = 0; i < FanModes.Length; i++) if (FanModes[i] == m) return i; return 0; }
 

@@ -257,6 +257,9 @@ namespace Ohman {
         readonly DispatcherTimer hide;
         [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int idx);
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int idx, int val);
+        [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+        static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        IntPtr hwnd;
         public Osd() {
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -283,9 +286,9 @@ namespace Ohman {
             Content = box;
             hide = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1400) };
             hide.Tick += delegate { hide.Stop(); var a = new DoubleAnimation(0, TimeSpan.FromMilliseconds(260)); a.Completed += delegate { if (Opacity < 0.05) Hide(); }; BeginAnimation(OpacityProperty, a); };
-            SourceInitialized += delegate {   // never steal focus (games), never appear in Alt-Tab
-                var h = new WindowInteropHelper(this).Handle;
-                SetWindowLong(h, -20, GetWindowLong(h, -20) | 0x08000000 | 0x00000080);
+            SourceInitialized += delegate {   // never steal focus (games), never appear in Alt-Tab, click-through
+                hwnd = new WindowInteropHelper(this).Handle;
+                SetWindowLong(hwnd, -20, GetWindowLong(hwnd, -20) | 0x08000000 | 0x00000080 | 0x00000020);
             };
         }
         public void Flash(string title, string detail, Color c, string pathData, int durationMs = 1400) {
@@ -299,6 +302,7 @@ namespace Ohman {
             var wa = SystemParameters.WorkArea;
             Left = wa.Left + (wa.Width - ActualWidth) / 2;
             Top = wa.Bottom - ActualHeight - 72;
+            if (hwnd != IntPtr.Zero) SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
             BeginAnimation(OpacityProperty, new DoubleAnimation(1, TimeSpan.FromMilliseconds(120)));
             hide.Stop();
             hide.Interval = TimeSpan.FromMilliseconds(durationMs > 0 ? durationMs : 1400);
