@@ -6,6 +6,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest"><img alt="Latest Release" src="https://img.shields.io/github/v/release/JITHINDSK1/ohman-with-overlay-and-ui-overhaul?color=success&style=for-the-badge"></a>
+  &nbsp;
   <a href="https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul"><img alt="GitHub Repo" src="https://img.shields.io/badge/GitHub-Repository-238636?style=for-the-badge&logo=github"></a>
   &nbsp;
   <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D6?style=for-the-badge&logo=windows">
@@ -14,6 +16,28 @@
   &nbsp;
   <img alt="License" src="https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge">
 </p>
+
+---
+
+## 📥 Download & Easy Installation
+
+### Option 1: 1-Click Installer (Recommended)
+1. Download **[Ohman-v1.0.6-Setup.zip](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/Ohman-v1.0.6-Setup.zip)** from the [Latest Release](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest).
+2. Extract the `.zip` archive.
+3. Right-click **`install.cmd`** and select **Run as administrator** (or double-click to run).
+4. **Done!**
+   - Installs Ohman cleanly into `%LOCALAPPDATA%\Programs\Ohman`.
+   - Creates Start Menu and Desktop shortcuts.
+   - Automatically registers elevated Windows logon autostart (no UAC popups every time you reboot).
+   - Starts running immediately in the system tray.
+
+> [!TIP]
+> To cleanly uninstall anytime, simply right-click `uninstall.cmd` and select **Run as administrator**.
+
+### Option 2: Standalone Portable Binary
+If you prefer not to install anything:
+1. Download **[Ohman.exe](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/Ohman.exe)** directly.
+2. Place it in any folder and run it as Administrator.
 
 ---
 
