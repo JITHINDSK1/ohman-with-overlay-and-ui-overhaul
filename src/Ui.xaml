@@ -920,6 +920,168 @@
         </StackPanel>
       </StackPanel>
 
+      <!-- ============ CUSTOM PROFILES ============ -->
+      <StackPanel x:Name="PageProfiles" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
+        <Grid x:Name="HeadProfiles" Background="Transparent" Margin="0,0,0,16">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock Text="Profiles" Style="{StaticResource Title}"/>
+            <Border Margin="12,1,0,0" CornerRadius="4" Background="#2600E5FF" Padding="8,2" VerticalAlignment="Center" ToolTip="Press Alt+W anywhere to cycle profiles">
+              <TextBlock Text="ALT + W TO SWITCH" FontSize="9.5" FontWeight="Bold" Foreground="#00E5FF" FontFamily="{DynamicResource UiFont}"/>
+            </Border>
+          </StackPanel>
+          <TextBlock x:Name="TxtProfilesStatus" Style="{StaticResource Mono}" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- Profile Selector Pills Bar -->
+        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="12,10" Margin="0,0,0,18">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+              <StackPanel x:Name="ProfilePillsHost" Orientation="Horizontal" VerticalAlignment="Center"/>
+            </ScrollViewer>
+            <Border x:Name="BtnAddProfilePill" Grid.Column="1" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="12,6" Cursor="Hand" ToolTip="Add a new custom profile">
+              <TextBlock Text="+ New Profile" Foreground="#00E5FF" FontSize="11.5" FontWeight="SemiBold"/>
+            </Border>
+          </Grid>
+        </Border>
+
+        <!-- Active Profile Editor Card -->
+        <Border Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="20" Margin="0,0,0,24">
+          <StackPanel>
+            <!-- Profile Name & Actions Header -->
+            <Grid Margin="0,0,0,18">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Profile Name:" Foreground="{StaticResource Sub}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <Border Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="10,6" Width="220">
+                  <TextBox x:Name="TxtProfileName" Background="Transparent" Foreground="{StaticResource TextHi}" BorderThickness="0" FontFamily="{DynamicResource UiFont}" FontSize="13" FontWeight="SemiBold"/>
+                </Border>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Border x:Name="BtnApplyProfile" Background="#1A00E5FF" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="6" Padding="14,6" Margin="0,0,10,0" Cursor="Hand" ToolTip="Apply these profile settings right now">
+                  <TextBlock Text="Apply Now" Foreground="#00E5FF" FontSize="11.5" FontWeight="SemiBold"/>
+                </Border>
+                <Border x:Name="BtnDuplicateProfile" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="12,6" Margin="0,0,10,0" Cursor="Hand" ToolTip="Duplicate this profile">
+                  <TextBlock Text="Duplicate" Foreground="{StaticResource Text}" FontSize="11.5" FontWeight="SemiBold"/>
+                </Border>
+                <Border x:Name="BtnDeleteProfile" Background="#2B1518" BorderBrush="#FF1E27" BorderThickness="1" CornerRadius="6" Padding="12,6" Cursor="Hand" ToolTip="Delete this profile">
+                  <TextBlock Text="Delete" Foreground="#FF4D55" FontSize="11.5" FontWeight="SemiBold"/>
+                </Border>
+              </StackPanel>
+            </Grid>
+
+            <!-- 1. Base Performance Mode -->
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="1. BASE PERFORMANCE MODE" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <Border x:Name="ProfileModeSegHost"/>
+              </StackPanel>
+            </Border>
+
+            <!-- 2. Starting Fan Behavior -->
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,0,0,16">
+              <StackPanel>
+                <Grid Margin="0,0,0,8">
+                  <TextBlock Text="2. STARTING FAN BEHAVIOR" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="TxtProfileFanValue" Style="{StaticResource Mono}" HorizontalAlignment="Right" Foreground="#00E5FF" FontSize="12" FontWeight="SemiBold"/>
+                </Grid>
+                <Border x:Name="ProfileFanSegHost" Margin="0,0,0,10"/>
+                <Grid x:Name="ProfileFanSliderRow" Margin="0,4,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="0 RPM" Foreground="{StaticResource Sub}" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                  <Slider x:Name="SlProfileFan" Grid.Column="1" Style="{StaticResource Sl}" Minimum="0" Maximum="62" SmallChange="1" LargeChange="5" IsSnapToTickEnabled="True" Ticks="0,18,23,33,48,57,62" Margin="14,0" VerticalAlignment="Center"/>
+                  <TextBlock Text="6200 RPM" Grid.Column="2" Foreground="{StaticResource Sub}" FontSize="10" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <!-- 3. Power Gain -->
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,0,0,16">
+              <StackPanel>
+                <Grid Margin="0,0,0,8">
+                  <TextBlock Text="3. POWER GAIN (TGP DYNAMIC BOOST)" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                  <TextBlock x:Name="TxtProfilePowerValue" Style="{StaticResource Mono}" HorizontalAlignment="Right" Foreground="#00E5FF" FontSize="12" FontWeight="SemiBold"/>
+                </Grid>
+                <Grid Margin="0,4,0,0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="+0 W" Foreground="{StaticResource Sub}" FontSize="10" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                  <Slider x:Name="SlProfilePower" Grid.Column="1" Style="{StaticResource Sl}" Minimum="0" Maximum="15" SmallChange="1" LargeChange="5" IsSnapToTickEnabled="True" Ticks="0,5,10,15" Margin="14,0" VerticalAlignment="Center"/>
+                  <TextBlock Text="+15 W" Grid.Column="2" Foreground="{StaticResource Sub}" FontSize="10" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <!-- 4. Keyboard Lighting -->
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,0,0,16">
+              <StackPanel>
+                <TextBlock Text="4. KEYBOARD LIGHTING &amp; COLOR" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2.2*"/>
+                    <ColumnDefinition Width="18"/>
+                    <ColumnDefinition Width="1.2*"/>
+                    <ColumnDefinition Width="18"/>
+                    <ColumnDefinition Width="2*"/>
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Text="EFFECT" Foreground="{StaticResource Sub}" FontSize="10" Margin="0,0,0,6"/>
+                    <Border x:Name="ProfileLightFxHost"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Text="HEX COLOR" Foreground="{StaticResource Sub}" FontSize="10" Margin="0,0,0,6"/>
+                    <Grid>
+                      <Border Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="8,5">
+                        <StackPanel Orientation="Horizontal">
+                          <Border x:Name="ColorSwatchPreview" Width="14" Height="14" CornerRadius="3" Background="#00E5FF" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                          <TextBox x:Name="TxtProfileLightHex" Text="#00E5FF" Background="Transparent" Foreground="{StaticResource TextHi}" BorderThickness="0" FontFamily="{DynamicResource MonoFont}" FontSize="12" FontWeight="Bold" Width="70" VerticalAlignment="Center"/>
+                        </StackPanel>
+                      </Border>
+                    </Grid>
+                  </StackPanel>
+                  <StackPanel Grid.Column="4">
+                    <Grid Margin="0,0,0,6">
+                      <TextBlock Text="BRIGHTNESS" Foreground="{StaticResource Sub}" FontSize="10"/>
+                      <TextBlock x:Name="TxtProfileLightLevel" Style="{StaticResource Mono}" HorizontalAlignment="Right" FontSize="10"/>
+                    </Grid>
+                    <Slider x:Name="SlProfileLightLevel" Style="{StaticResource Sl}" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <!-- 5. Application Auto-Boost Triggers -->
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="0,16,0,0">
+              <StackPanel>
+                <Grid Margin="0,0,0,8">
+                  <StackPanel>
+                    <TextBlock Text="5. APPLICATION AUTO-BOOST TRIGGERS" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="10" FontWeight="SemiBold"/>
+                    <TextBlock Text="When any of these apps are running or focused, Ohman automatically overrides fans and mode:" Foreground="{StaticResource Sub}" FontSize="11" Margin="0,3,0,0"/>
+                  </StackPanel>
+                  <Border x:Name="BtnOpenProcessModal" HorizontalAlignment="Right" VerticalAlignment="Center" Background="#1A00E5FF" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="6" Padding="12,6" Cursor="Hand" ToolTip="Select from running operations without browsing files">
+                    <TextBlock Text="+ Add from Running Apps" Foreground="#00E5FF" FontSize="11" FontWeight="SemiBold"/>
+                  </Border>
+                </Grid>
+                <StackPanel x:Name="ProfileTriggersHost" Margin="0,8,0,0"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
       <!-- ============ KEYBOARD LOCK ============ -->
       <StackPanel x:Name="PageInput" Margin="32,24,32,24" MaxWidth="1100" HorizontalAlignment="Stretch" Visibility="Collapsed">
         <Grid x:Name="HeadInput" Background="Transparent">
@@ -1189,6 +1351,62 @@
       <Border x:Name="Toast" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="24,0,24,14" CornerRadius="8" Background="#D4100D0B" BorderBrush="#2C2825" BorderThickness="1" Padding="12,7" Opacity="0" IsHitTestVisible="False">
         <TextBlock x:Name="TxtToast" Style="{StaticResource Cap}" Foreground="{StaticResource Text}" TextWrapping="NoWrap"/>
       </Border>
+
+      <!-- Process Picker Modal Overlay -->
+      <Grid x:Name="ProcessPickerModal" Visibility="Collapsed" Background="#D9000000" IsHitTestVisible="True">
+        <Border Width="540" Background="{StaticResource Card}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="10" Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center">
+          <StackPanel>
+            <Grid Margin="0,0,0,14">
+              <StackPanel>
+                <TextBlock Text="Select Running Operation / App" Style="{StaticResource Title}" FontSize="16"/>
+                <TextBlock Text="Choose any active application to trigger auto-boost fans and mode" Foreground="{StaticResource Sub}" Margin="0,3,0,0"/>
+              </StackPanel>
+              <Border x:Name="BtnCloseProcessModal" HorizontalAlignment="Right" VerticalAlignment="Top" Width="28" Height="28" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="14" Cursor="Hand">
+                <TextBlock Text="✕" Foreground="{StaticResource Text}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11"/>
+              </Border>
+            </Grid>
+
+            <!-- Search Filter -->
+            <Border Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,0,12">
+              <TextBox x:Name="TxtProcessSearch" Background="Transparent" Foreground="{StaticResource TextHi}" BorderThickness="0" FontFamily="{DynamicResource UiFont}" FontSize="12.5"/>
+            </Border>
+
+            <!-- Process List Host -->
+            <Border Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Height="200" Margin="0,0,0,14">
+              <ScrollViewer x:Name="ProcessListScroll" VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="ProcessListHost" Margin="6"/>
+              </ScrollViewer>
+            </Border>
+
+            <!-- Selected Process & Boost Settings -->
+            <Grid Margin="0,0,0,16">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0">
+                <TextBlock Text="TARGET FAN RPM" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" Margin="0,0,0,6"/>
+                <Border x:Name="TriggerFanSegHost"/>
+              </StackPanel>
+              <StackPanel Grid.Column="2">
+                <TextBlock Text="TARGET MODE" Style="{StaticResource Mono}" Foreground="{StaticResource Sub}" FontSize="9.5" Margin="0,0,0,6"/>
+                <Border x:Name="TriggerModeSegHost"/>
+              </StackPanel>
+            </Grid>
+
+            <!-- Modal Action Buttons -->
+            <Grid>
+              <Border x:Name="BtnCancelProcessModal" HorizontalAlignment="Left" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Edge}" BorderThickness="1" CornerRadius="6" Padding="16,7" Cursor="Hand">
+                <TextBlock Text="Cancel" Foreground="{StaticResource Text}" FontSize="12" FontWeight="SemiBold"/>
+              </Border>
+              <Border x:Name="BtnAddSelectedProcess" HorizontalAlignment="Right" Background="#1A00E5FF" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="6" Padding="18,7" Cursor="Hand">
+                <TextBlock Text="Add Auto-Boost Rule" Foreground="#00E5FF" FontSize="12" FontWeight="Bold"/>
+              </Border>
+            </Grid>
+          </StackPanel>
+        </Border>
+      </Grid>
     </Grid>
   </Grid>
 </Grid>

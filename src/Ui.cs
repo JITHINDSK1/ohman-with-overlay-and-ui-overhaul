@@ -30,7 +30,7 @@ namespace Ohman {
 
 
     public sealed class MainWindow : Window {
-        enum Page { Home = 0, Fans = 1, Keyboard = 2, Input = 3, Settings = 4 }
+        enum Page { Home = 0, Fans = 1, Keyboard = 2, Profiles = 3, Input = 4, Settings = 5 }
         const double RailW = 62, PageW = 980, KbdPageW = 980, SettingsH = 720;
 
         Osd osd;
@@ -50,6 +50,7 @@ namespace Ohman {
         const string ICO_UPDATE = "M12 4 V14.2 M7.6 10.2 L12 14.8 L16.4 10.2 M4.6 19 H19.4";
         const string ICO_FANS = "M3 8.5 C5.5 5.5 8.5 11.5 12 8.5 C15.5 5.5 18.5 11.5 21 8.5 M3 15.5 C5.5 12.5 8.5 18.5 12 15.5 C15.5 12.5 18.5 18.5 21 15.5";
         const string ICO_KBD = "M2.5 7.5 A2 2 0 0 1 4.5 5.5 H19.5 A2 2 0 0 1 21.5 7.5 V16.5 A2 2 0 0 1 19.5 18.5 H4.5 A2 2 0 0 1 2.5 16.5 Z M6 9.5 H6.4 M9.8 9.5 H10.2 M13.6 9.5 H14 M17.4 9.5 H17.8 M6 12.5 H6.4 M9.8 12.5 H10.2 M13.6 12.5 H14 M17.4 12.5 H17.8 M7.5 15.5 H16.5";
+        const string ICO_PROFILES = "M4 5 A2 2 0 0 1 6 3 H18 A2 2 0 0 1 20 5 V19 A2 2 0 0 1 18 21 H6 A2 2 0 0 1 4 19 Z M8 7 H16 M8 11 H16 M8 15 H12";
         const string ICO_KBD_LOCK = "M7 10 V7 A5 5 0 0 1 17 7 V10 M5 10 H19 A2 2 0 0 1 21 12 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V12 A2 2 0 0 1 5 10 Z M12 14 V17";
 
         readonly Engine E;
@@ -59,10 +60,10 @@ namespace Ohman {
         FrameworkElement root;
         Grid pageHost;
         ScrollViewer scroll;
-        readonly FrameworkElement[] pages = new FrameworkElement[5];
+        readonly FrameworkElement[] pages = new FrameworkElement[6];
         Page cur = Page.Home;
         bool pageShown;
-        readonly NavBtn[] nav = new NavBtn[5];
+        readonly NavBtn[] nav = new NavBtn[6];
         Border railPill;
         TranslateTransform railPillT;
         Canvas railCanvas;
@@ -73,6 +74,19 @@ namespace Ohman {
         // keyboard remapping
         Dictionary<uint, uint> remapTable = new Dictionary<uint, uint>();
         bool capturingSrc, capturingDst;
+
+        // Profiles & Process Picker
+        StackPanel profilePillsHost, profileTriggersHost, processListHost;
+        TextBox txtProfileName, txtProfileLightHex, txtProcessSearch;
+        TextBlock txtProfilesStatus, txtProfileFanValue, txtProfilePowerValue, txtProfileLightLevel;
+        Border colorSwatchPreview, btnAddProfilePill, btnDuplicateProfile, btnDeleteProfile, btnApplyProfile, btnOpenProcessModal;
+        Border btnCloseProcessModal, btnCancelProcessModal, btnAddSelectedProcess;
+        Grid processPickerModal, profileFanSliderRow;
+        Slider slProfileFan, slProfilePower, slProfileLightLevel;
+        Seg profileModeSeg, profileFanSeg, profileLightFxSeg, triggerFanSeg, triggerModeSeg;
+        string selectedPickerProcess = null;
+        int activeEditingProfileIndex = 0;
+        bool altWHeld;
         uint selectedSrcVk, selectedDstVk;
         Seg kbdSubTabsSeg;
         FrameworkElement kbdLightingPanel, kbdRemapPanel;
@@ -227,6 +241,8 @@ namespace Ohman {
             BuildFans();
             BuildKeyboard();
             BuildRemap();
+            BuildProfiles();
+            BuildProcessPickerModal();
             BuildInput();
             BuildSettings();
             BuildIcons();
@@ -310,8 +326,9 @@ namespace Ohman {
             pages[0] = F<FrameworkElement>("PageHome");
             pages[1] = F<FrameworkElement>("PageFans");
             pages[2] = F<FrameworkElement>("PageKbd");
-            pages[3] = F<FrameworkElement>("PageInput");
-            pages[4] = F<FrameworkElement>("PageSettings");
+            pages[3] = F<FrameworkElement>("PageProfiles");
+            pages[4] = F<FrameworkElement>("PageInput");
+            pages[5] = F<FrameworkElement>("PageSettings");
             txtHomeTitle = F<TextBlock>("TxtHomeTitle");
             txtHomeStatus = F<TextBlock>("TxtHomeStatus");
             demoBadge = F<FrameworkElement>("DemoBadge");
@@ -533,13 +550,15 @@ namespace Ohman {
             nav[0] = new NavBtn(0, "Home", new[] { ICO_HOME_RING }, new[] { ICO_HOME_DOT });
             nav[1] = new NavBtn(1, "Fans", new[] { ICO_FANS }, new string[0]);
             nav[2] = new NavBtn(2, "Keyboard", new[] { ICO_KBD }, new string[0]);
-            nav[3] = new NavBtn(3, "Keyboard Lock", new[] { ICO_KBD_LOCK }, new string[0]);
-            nav[4] = new NavBtn(4, "Settings", new string[0], new[] { GearPath(12, 12, 10, 7.6, 8, 3.4) });
-            for (int i = 0; i < 5; i++) { nav[i].HorizontalAlignment = HorizontalAlignment.Center; nav[i].Clicked += delegate(int idx) { Navigate((Page)idx, true); }; }
+            nav[3] = new NavBtn(3, "Profiles", new[] { ICO_PROFILES }, new string[0]);
+            nav[4] = new NavBtn(4, "Keyboard Lock", new[] { ICO_KBD_LOCK }, new string[0]);
+            nav[5] = new NavBtn(5, "Settings", new string[0], new[] { GearPath(12, 12, 10, 7.6, 8, 3.4) });
+            for (int i = 0; i < 6; i++) { nav[i].HorizontalAlignment = HorizontalAlignment.Center; nav[i].Clicked += delegate(int idx) { Navigate((Page)idx, true); }; }
             host.Children.Add(nav[0]);
             host.Children.Add(nav[1]);
             host.Children.Add(nav[2]);
             host.Children.Add(nav[3]);
+            host.Children.Add(nav[4]);
             // Above Settings, and only while there is something to install. It is a signpost rather than a page:
             // it goes where the update lives instead of doing anything itself, so nothing is one stray click from
             // restarting the app. It stays out of nav[] deliberately -- the rail pill tracks the current page, and
@@ -550,7 +569,7 @@ namespace Ohman {
             navUpdate.Visibility = Visibility.Collapsed;
             navUpdate.Clicked += delegate { ShowUpdateRow(); };
             bottom.Children.Add(navUpdate);
-            bottom.Children.Add(nav[4]);
+            bottom.Children.Add(nav[5]);
             logoHost.MouseLeftButtonDown += delegate(object o, MouseButtonEventArgs e) { e.Handled = true; Navigate(Page.Home, true); };
             rail.MouseLeftButtonDown += delegate(object o, MouseButtonEventArgs e) { if (e.LeftButton == MouseButtonState.Pressed) Drag(); };
             rail.SizeChanged += delegate { if (!morphing) PlaceRailPill(false); };   // the morph moves the rail every frame; the pill is aimed at the end position instead
@@ -2030,6 +2049,437 @@ namespace Ohman {
             return 0;
         }
 
+        // ---------- custom profiles & process auto-boost ----------
+        void BuildProfiles() {
+            profilePillsHost = F<StackPanel>("ProfilePillsHost");
+            profileTriggersHost = F<StackPanel>("ProfileTriggersHost");
+            txtProfilesStatus = F<TextBlock>("TxtProfilesStatus");
+            txtProfileName = F<TextBox>("TxtProfileName");
+            txtProfileLightHex = F<TextBox>("TxtProfileLightHex");
+            colorSwatchPreview = F<Border>("ColorSwatchPreview");
+            txtProfileFanValue = F<TextBlock>("TxtProfileFanValue");
+            txtProfilePowerValue = F<TextBlock>("TxtProfilePowerValue");
+            txtProfileLightLevel = F<TextBlock>("TxtProfileLightLevel");
+            btnAddProfilePill = F<Border>("BtnAddProfilePill");
+            btnDuplicateProfile = F<Border>("BtnDuplicateProfile");
+            btnDeleteProfile = F<Border>("BtnDeleteProfile");
+            btnApplyProfile = F<Border>("BtnApplyProfile");
+            btnOpenProcessModal = F<Border>("BtnOpenProcessModal");
+            slProfileFan = F<Slider>("SlProfileFan");
+            slProfilePower = F<Slider>("SlProfilePower");
+            slProfileLightLevel = F<Slider>("SlProfileLightLevel");
+            profileFanSliderRow = F<Grid>("ProfileFanSliderRow");
+
+            profileModeSeg = new Seg(Engine.ModeNames, ModeSubs, null, Seg.Kind.Compact);
+            F<Border>("ProfileModeSegHost").Child = profileModeSeg;
+            profileModeSeg.Picked += delegate(int i) {
+                var p = CurrentEditingProfile;
+                if (p != null) { p.ModeIndex = i; ProfileManager.Instance.Save(); UpdateProfilesUi(); }
+            };
+
+            profileFanSeg = new Seg(new[] { "Auto Curve", "0 RPM (Silent)", "Fixed RPM", "5700 Turbo", "Heat Wipe (6200)" }, null, null, Seg.Kind.Compact);
+            F<Border>("ProfileFanSegHost").Child = profileFanSeg;
+            profileFanSeg.Picked += delegate(int i) {
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    if (i == 0) { p.FanMode = FanMode.Auto; }
+                    else if (i == 1) { p.FanMode = FanMode.Manual; p.FanRpm = 0; }
+                    else if (i == 2) { p.FanMode = FanMode.Manual; if (p.FanRpm == 0 || p.FanRpm >= 57) p.FanRpm = 33; }
+                    else if (i == 3) { p.FanMode = FanMode.Manual; p.FanRpm = 57; }
+                    else if (i == 4) { p.FanMode = FanMode.Turbo6200; p.FanRpm = 62; }
+                    ProfileManager.Instance.Save();
+                    UpdateProfilesUi();
+                }
+            };
+
+            profileLightFxSeg = new Seg(new[] { "Static", "Breathe", "Cycle", "Wave", "Off" }, null, null, Seg.Kind.Compact);
+            F<Border>("ProfileLightFxHost").Child = profileLightFxSeg;
+            profileLightFxSeg.Picked += delegate(int i) {
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    p.LightEffect = i == 4 ? -1 : i;
+                    ProfileManager.Instance.Save();
+                    UpdateProfilesUi();
+                }
+            };
+
+            slProfileFan.ValueChanged += delegate {
+                if (syncing) return;
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    p.FanRpm = (int)slProfileFan.Value;
+                    if (p.FanRpm == 0) p.FanMode = FanMode.Manual;
+                    else if (p.FanRpm >= 62) p.FanMode = FanMode.Turbo6200;
+                    else p.FanMode = FanMode.Manual;
+                    ProfileManager.Instance.Save();
+                    txtProfileFanValue.Text = p.FanDescription;
+                }
+            };
+
+            slProfilePower.ValueChanged += delegate {
+                if (syncing) return;
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    p.PowerGain = (int)slProfilePower.Value;
+                    ProfileManager.Instance.Save();
+                    txtProfilePowerValue.Text = "+" + p.PowerGain + " W";
+                }
+            };
+
+            slProfileLightLevel.ValueChanged += delegate {
+                if (syncing) return;
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    p.LightLevel = (int)slProfileLightLevel.Value;
+                    ProfileManager.Instance.Save();
+                    txtProfileLightLevel.Text = p.LightLevel + "%";
+                }
+            };
+
+            txtProfileName.TextChanged += delegate {
+                if (syncing) return;
+                var p = CurrentEditingProfile;
+                if (p != null && !string.IsNullOrWhiteSpace(txtProfileName.Text)) {
+                    p.Name = txtProfileName.Text.Trim();
+                    ProfileManager.Instance.Save();
+                    RenderProfilePills();
+                }
+            };
+
+            txtProfileLightHex.TextChanged += delegate {
+                if (syncing) return;
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    string hex = txtProfileLightHex.Text.Trim();
+                    if (!hex.StartsWith("#")) hex = "#" + hex;
+                    Rgb rgb;
+                    if (Rgb.TryParse(hex.TrimStart('#'), out rgb)) {
+                        p.LightHex = hex;
+                        colorSwatchPreview.Background = new SolidColorBrush(Color.FromRgb(rgb.R, rgb.G, rgb.B));
+                        ProfileManager.Instance.Save();
+                    }
+                }
+            };
+
+            btnAddProfilePill.MouseLeftButtonUp += delegate {
+                ProfileManager.Instance.AddProfile("Profile " + (ProfileManager.Instance.Profiles.Count + 1));
+                activeEditingProfileIndex = ProfileManager.Instance.Profiles.Count - 1;
+                UpdateProfilesUi();
+            };
+
+            btnDuplicateProfile.MouseLeftButtonUp += delegate {
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    var copy = p.Clone();
+                    ProfileManager.Instance.Profiles.Add(copy);
+                    activeEditingProfileIndex = ProfileManager.Instance.Profiles.Count - 1;
+                    ProfileManager.Instance.Save();
+                    UpdateProfilesUi();
+                    ShowToast("Profile duplicated", false);
+                }
+            };
+
+            btnDeleteProfile.MouseLeftButtonUp += delegate {
+                if (ProfileManager.Instance.Profiles.Count <= 1) {
+                    ShowToast("Cannot delete the only profile", true);
+                    return;
+                }
+                ProfileManager.Instance.DeleteProfile(activeEditingProfileIndex);
+                if (activeEditingProfileIndex >= ProfileManager.Instance.Profiles.Count) activeEditingProfileIndex = ProfileManager.Instance.Profiles.Count - 1;
+                UpdateProfilesUi();
+                ShowToast("Profile deleted", false);
+            };
+
+            btnApplyProfile.MouseLeftButtonUp += delegate {
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    ProfileManager.Instance.SelectProfile(activeEditingProfileIndex);
+                    ShowToast("Applied profile: " + p.Name, false);
+                }
+            };
+
+            btnOpenProcessModal.MouseLeftButtonUp += delegate {
+                OpenProcessPickerModal();
+            };
+
+            ProfileManager.Instance.Initialize(E, Flash);
+            ProfileManager.Instance.ProfilesChanged += delegate { Dispatcher.BeginInvoke((Action)UpdateProfilesUi); };
+            ProfileManager.Instance.ActiveProfileChanged += delegate { Dispatcher.BeginInvoke((Action)UpdateProfilesUi); };
+            UpdateProfilesUi();
+        }
+
+        UserProfile CurrentEditingProfile {
+            get {
+                var list = ProfileManager.Instance.Profiles;
+                if (list.Count == 0) return null;
+                if (activeEditingProfileIndex < 0 || activeEditingProfileIndex >= list.Count) activeEditingProfileIndex = 0;
+                return list[activeEditingProfileIndex];
+            }
+        }
+
+        void CycleProfileWithFlash() {
+            ProfileManager.Instance.CycleNextProfile();
+            if (cur == Page.Profiles) UpdateProfilesUi();
+        }
+
+        void RenderProfilePills() {
+            profilePillsHost.Children.Clear();
+            var list = ProfileManager.Instance.Profiles;
+            for (int i = 0; i < list.Count; i++) {
+                int idx = i;
+                var p = list[i];
+                bool isEditing = idx == activeEditingProfileIndex;
+                bool isActive = idx == ProfileManager.Instance.ActiveIndex;
+
+                var pill = new Border {
+                    Background = isEditing ? Ui.Brush("#3300E5FF") : Ui.Brush("#14FFFFFF"),
+                    BorderBrush = isEditing ? Ui.Brush("#00E5FF") : isActive ? Ui.Brush("#36D989") : Ui.Brush("#22FFFFFF"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(12, 6, 12, 6),
+                    Margin = new Thickness(0, 0, 8, 0),
+                    Cursor = Cursors.Hand
+                };
+
+                var sp = new StackPanel { Orientation = Orientation.Horizontal };
+                if (isActive) {
+                    sp.Children.Add(new Border {
+                        Width = 6, Height = 6, CornerRadius = new CornerRadius(3),
+                        Background = Ui.Brush("#36D989"),
+                        Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center
+                    });
+                }
+                sp.Children.Add(new TextBlock {
+                    Text = p.Name,
+                    Foreground = isEditing ? Ui.Brush("#00E5FF") : Ui.TextB,
+                    FontWeight = isEditing || isActive ? FontWeights.Bold : FontWeights.Normal,
+                    FontSize = 12
+                });
+                pill.Child = sp;
+
+                pill.MouseLeftButtonUp += delegate {
+                    activeEditingProfileIndex = idx;
+                    UpdateProfilesUi();
+                };
+                profilePillsHost.Children.Add(pill);
+            }
+        }
+
+        void RenderProfileTriggers(UserProfile p) {
+            profileTriggersHost.Children.Clear();
+            if (p == null || p.Triggers.Count == 0) {
+                profileTriggersHost.Children.Add(new TextBlock {
+                    Text = "No auto-boost rules added yet. Click '+ Add from Running Apps' to boost fans automatically when launching games or tools.",
+                    Foreground = Ui.Sub,
+                    FontSize = 11.5,
+                    Margin = new Thickness(0, 4, 0, 8)
+                });
+                return;
+            }
+
+            for (int i = 0; i < p.Triggers.Count; i++) {
+                int tIdx = i;
+                var t = p.Triggers[i];
+                var card = new Border {
+                    Background = Ui.Brush("#18FFFFFF"),
+                    BorderBrush = Ui.Brush("#22FFFFFF"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(12, 8, 12, 8),
+                    Margin = new Thickness(0, 0, 0, 6)
+                };
+
+                var g = new Grid();
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+                left.Children.Add(new TextBlock { Text = t.ProcessName + ".exe", Foreground = Ui.TextHi, FontWeight = FontWeights.SemiBold, FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+                left.Children.Add(new TextBlock { Text = " \u2794 Fans " + (t.TargetFanRpm * 100) + " RPM \u00B7 " + Engine.ModeNames[t.TargetModeIndex], Foreground = Ui.Brush("#00E5FF"), FontSize = 11.5, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
+                g.Children.Add(left);
+
+                var del = new Border {
+                    Background = Ui.Brush("#22FF1E27"),
+                    BorderBrush = Ui.Brush("#88FF1E27"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    Cursor = Cursors.Hand
+                };
+                del.Child = new TextBlock { Text = "\u2715 Remove", Foreground = Ui.Brush("#FF4D55"), FontSize = 10.5, FontWeight = FontWeights.SemiBold };
+                del.MouseLeftButtonUp += delegate {
+                    p.Triggers.RemoveAt(tIdx);
+                    ProfileManager.Instance.Save();
+                    RenderProfileTriggers(p);
+                    ShowToast("Trigger removed", false);
+                };
+                Grid.SetColumn(del, 1);
+                g.Children.Add(del);
+
+                card.Child = g;
+                profileTriggersHost.Children.Add(card);
+            }
+        }
+
+        void UpdateProfilesUi() {
+            var p = CurrentEditingProfile;
+            if (p == null) return;
+            syncing = true;
+            try {
+                RenderProfilePills();
+                txtProfileName.Text = p.Name;
+                profileModeSeg.Select(p.ModeIndex, false);
+
+                if (p.FanMode == FanMode.Turbo6200 || p.FanRpm >= 62) profileFanSeg.Select(4, false);
+                else if (p.FanRpm >= 57) profileFanSeg.Select(3, false);
+                else if (p.FanMode == FanMode.Auto) profileFanSeg.Select(0, false);
+                else if (p.FanRpm == 0) profileFanSeg.Select(1, false);
+                else profileFanSeg.Select(2, false);
+
+                slProfileFan.Value = p.FanRpm;
+                txtProfileFanValue.Text = p.FanDescription;
+
+                slProfilePower.Value = p.PowerGain;
+                txtProfilePowerValue.Text = "+" + p.PowerGain + " W";
+
+                int fxIdx = p.LightEffect == -1 ? 4 : Math.Max(0, Math.Min(3, p.LightEffect));
+                profileLightFxSeg.Select(fxIdx, false);
+                txtProfileLightHex.Text = p.LightHex;
+                Rgb rgb;
+                if (Rgb.TryParse(p.LightHex.TrimStart('#'), out rgb)) {
+                    colorSwatchPreview.Background = new SolidColorBrush(Color.FromRgb(rgb.R, rgb.G, rgb.B));
+                }
+
+                slProfileLightLevel.Value = p.LightLevel;
+                txtProfileLightLevel.Text = p.LightLevel + "%";
+
+                txtProfilesStatus.Text = ProfileManager.Instance.Profiles.Count + " profiles \u00B7 Active: " + ProfileManager.Instance.ActiveProfile.Name;
+
+                RenderProfileTriggers(p);
+            } finally {
+                syncing = false;
+            }
+        }
+
+        void BuildProcessPickerModal() {
+            processPickerModal = F<Grid>("ProcessPickerModal");
+            processListHost = F<StackPanel>("ProcessListHost");
+            txtProcessSearch = F<TextBox>("TxtProcessSearch");
+            btnCloseProcessModal = F<Border>("BtnCloseProcessModal");
+            btnCancelProcessModal = F<Border>("BtnCancelProcessModal");
+            btnAddSelectedProcess = F<Border>("BtnAddSelectedProcess");
+
+            triggerFanSeg = new Seg(new[] { "5700 Turbo", "Heat Wipe (6200)", "4800 High", "3300 Mid" }, null, new object[] { 57, 62, 48, 33 }, Seg.Kind.Compact);
+            F<Border>("TriggerFanSegHost").Child = triggerFanSeg;
+            triggerFanSeg.Select(0, false);
+
+            triggerModeSeg = new Seg(Engine.ModeNames, null, null, Seg.Kind.Compact);
+            F<Border>("TriggerModeSegHost").Child = triggerModeSeg;
+            triggerModeSeg.Select(3, false);
+
+            btnCloseProcessModal.MouseLeftButtonUp += delegate { processPickerModal.Visibility = Visibility.Collapsed; };
+            btnCancelProcessModal.MouseLeftButtonUp += delegate { processPickerModal.Visibility = Visibility.Collapsed; };
+
+            txtProcessSearch.TextChanged += delegate {
+                FilterProcessList(txtProcessSearch.Text.Trim());
+            };
+
+            btnAddSelectedProcess.MouseLeftButtonUp += delegate {
+                if (string.IsNullOrEmpty(selectedPickerProcess)) {
+                    ShowToast("Please select a process from the list first", true);
+                    return;
+                }
+                var p = CurrentEditingProfile;
+                if (p != null) {
+                    int fan = (int)triggerFanSeg.Tags[triggerFanSeg.Selected];
+                    int mode = triggerModeSeg.Selected;
+                    p.Triggers.Add(new AppTrigger {
+                        ProcessName = selectedPickerProcess,
+                        DisplayName = selectedPickerProcess,
+                        TargetFanRpm = fan,
+                        TargetModeIndex = mode,
+                        Enabled = true
+                    });
+                    ProfileManager.Instance.Save();
+                    processPickerModal.Visibility = Visibility.Collapsed;
+                    RenderProfileTriggers(p);
+                    ShowToast("Added auto-boost rule for " + selectedPickerProcess, false);
+                }
+            };
+        }
+
+        List<string> cachedProcesses = new List<string>();
+
+        void OpenProcessPickerModal() {
+            selectedPickerProcess = null;
+            txtProcessSearch.Text = "";
+            processListHost.Children.Clear();
+            processPickerModal.Visibility = Visibility.Visible;
+
+            Bg(delegate {
+                var procs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try {
+                    foreach (var p in Process.GetProcesses()) {
+                        try {
+                            string n = p.ProcessName;
+                            if (string.IsNullOrEmpty(n)) continue;
+                            if (n.Equals("svchost", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("dwm", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("Registry", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("Idle", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("smss", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("csrss", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("services", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("lsass", StringComparison.OrdinalIgnoreCase) ||
+                                n.Equals("fontdrvhost", StringComparison.OrdinalIgnoreCase)) continue;
+                            procs.Add(n);
+                        } catch { }
+                    }
+                } catch { }
+
+                var list = new List<string>(procs);
+                list.Sort(StringComparer.OrdinalIgnoreCase);
+                cachedProcesses = list;
+
+                Dispatcher.BeginInvoke((Action)delegate {
+                    FilterProcessList("");
+                });
+            });
+        }
+
+        void FilterProcessList(string filter) {
+            processListHost.Children.Clear();
+            foreach (var proc in cachedProcesses) {
+                if (!string.IsNullOrEmpty(filter) && proc.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                string pName = proc;
+                var row = new Border {
+                    Background = Ui.Brush("#14FFFFFF"),
+                    BorderBrush = Ui.Brush("#22FFFFFF"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(10, 6, 10, 6),
+                    Margin = new Thickness(0, 0, 0, 4),
+                    Cursor = Cursors.Hand
+                };
+                var sp = new StackPanel { Orientation = Orientation.Horizontal };
+                sp.Children.Add(new TextBlock { Text = pName, Foreground = Ui.TextHi, FontWeight = FontWeights.SemiBold, FontSize = 12 });
+                sp.Children.Add(new TextBlock { Text = ".exe", Foreground = Ui.Sub, FontSize = 11, Margin = new Thickness(2, 1, 0, 0) });
+                row.Child = sp;
+
+                row.MouseLeftButtonUp += delegate {
+                    selectedPickerProcess = pName;
+                    foreach (Border b in processListHost.Children) {
+                        b.Background = Ui.Brush("#14FFFFFF");
+                        b.BorderBrush = Ui.Brush("#22FFFFFF");
+                    }
+                    row.Background = Ui.Brush("#3300E5FF");
+                    row.BorderBrush = Ui.Brush("#00E5FF");
+                };
+                processListHost.Children.Add(row);
+            }
+        }
+
         // ---------- keyboard lock controls ----------
         void BuildInput() {
             badgeKeyboardStatus = F<Border>("BadgeKeyboardStatus");
@@ -2546,6 +2996,7 @@ namespace Ohman {
             if (!RegisterHotKey(h, 7, MOD_SHIFT, VK_F11)) Log.Write("hotkey Shift+F11 not available");   // next to the OMEN key: cycles modes
             if (!RegisterHotKey(h, 8, MOD_WIN, (uint)'O')) Log.Write("hotkey Win+O RegisterHotKey unavailable");
             RegisterHotKey(h, 9, MOD_ALT, (uint)'Q'); // Fn+Q / Alt+Q toggle 5700 RPM fans mode
+            RegisterHotKey(h, 10, MOD_ALT, (uint)'W'); // Alt+W cycle profiles
             // Always install low-level hook to catch Fn+Q / OEM performance key and provide Win+O fallback
             InstallKeyboardHook();
             hotkeysRegistered = true;
@@ -2655,6 +3106,22 @@ namespace Ohman {
                                     return (IntPtr)1;
                                 }
                             }
+                        } else if (vk == (uint)'W') {
+                            if (msg == WM_KEYUP || msg == WM_SYSKEYUP) {
+                                altWHeld = false;
+                            } else {
+                                bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+                                bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+                                bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                                bool winDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0 || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+                                if (altDown && !ctrlDown && !winDown && !shiftDown) {
+                                    if (!altWHeld) {
+                                        altWHeld = true;
+                                        Dispatcher.BeginInvoke((Action)CycleProfileWithFlash);
+                                    }
+                                    return (IntPtr)1;
+                                }
+                            }
                         }
                     }
                 }
@@ -2662,10 +3129,10 @@ namespace Ohman {
             return CallNextHookEx(llHook, nCode, wParam, lParam);
         }
         void UnregisterHotkeys() {
-            if (llHook != IntPtr.Zero) { UnhookWindowsHookEx(llHook); llHook = IntPtr.Zero; llProc = null; winOHeld = false; fnQHeld = false; }
+            if (llHook != IntPtr.Zero) { UnhookWindowsHookEx(llHook); llHook = IntPtr.Zero; llProc = null; winOHeld = false; fnQHeld = false; altWHeld = false; }
             if (!hotkeysRegistered) return;
             var h = new WindowInteropHelper(this).Handle;
-            for (int i = 1; i <= 9; i++) UnregisterHotKey(h, i);
+            for (int i = 1; i <= 10; i++) UnregisterHotKey(h, i);
             hotkeysRegistered = false;
         }
         IntPtr Hook(IntPtr h, int msg, IntPtr wp, IntPtr lp, ref bool handled) {
@@ -2677,6 +3144,7 @@ namespace Ohman {
                 else if (id == 7) CycleWithFlash();
                 else if (id == 8) CycleOverlayWithFlash();
                 else if (id == 9) Toggle5700WithFlash();
+                else if (id == 10) CycleProfileWithFlash();
                 handled = true;
             }
             return IntPtr.Zero;
@@ -2694,6 +3162,8 @@ namespace Ohman {
                 if (kbdLightingPanel != null) kbdLightingPanel.Visibility = Visibility.Collapsed;
                 if (kbdRemapPanel != null) kbdRemapPanel.Visibility = Visibility.Visible;
             }
+            else if (page == "profiles") Navigate(Page.Profiles, false);
+            else if (page == "input") Navigate(Page.Input, false);
             else if (page == "input") Navigate(Page.Input, false);
             else if (page == "settings") Navigate(Page.Settings, false);
             else if (page == "update") ShowUpdateRow();          // where the rail button goes: settings, at the update row

@@ -22,7 +22,7 @@
 ## 📥 Download & Easy Installation
 
 ### Option 1: 1-Click Installer (Recommended)
-1. Download **[Ohman-v1.0.6-Setup.zip](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/Ohman-v1.0.6-Setup.zip)** from the [Latest Release](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest).
+1. Download **[Ohman-v1.0.7-Setup.zip](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/Ohman-v1.0.7-Setup.zip)** from the [Latest Release](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest).
 2. Extract the `.zip` archive.
 3. Right-click **`install.cmd`** and select **Run as administrator** (or double-click to run).
 4. **Done!**
@@ -105,9 +105,23 @@ This fork transforms **Ohman** into a high-performance, zero-lag laptop companio
   - Safe low-level input filtering that keeps mice, touchpads, and recovery keys fully operational.
   - Emergency instant unlock shortcut: <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd>.
 
-### 7. Hotkeys & Shortcuts Summary
+### 7. Customizable Profiles & App Auto-Boost Triggers
+- **Switch Anytime via <kbd>Alt</kbd> + <kbd>W</kbd>**: Instantly cycles between custom profiles with a floating on-screen HUD flash displaying active mode, fan speeds, power gain, and color.
+- **Granular Customization**:
+  - **Base Performance Mode**: Quiet, Balanced, Performance, or Unleashed.
+  - **Starting Fan RPM**: Auto Curve, 0 RPM (True Silent), Fixed Speeds (1800–4800 RPM), 5700 RPM Turbo, or Heat Wipe (6200 RPM).
+  - **Power Gain**: Dynamic TGP power limit slider (+0W to +15W).
+  - **Keyboard Lighting**: Static, Breathe, Cycle, Wave, or Off with hex color picker and brightness slider.
+- **Application Auto-Boost Triggers**:
+  - Automatically ramps fan speeds and activates Unleashed/Performance mode when designated games or applications are launched or focused (e.g. `VALORANT-Win64-Shipping.exe`, `blender.exe`).
+  - Seamlessly restores base profile settings and steps down fan speeds when the application exits.
+- **Zero-Friction Process Picker**:
+  - Select active apps and operations directly from a live running process picker dialog—**no browsing through File Explorer required**.
+
+### 8. Hotkeys & Shortcuts Summary
 | Shortcut | Action |
 | :--- | :--- |
+| <kbd>Alt</kbd> + <kbd>W</kbd> | Cycle Custom Profiles + Show HUD Overlay |
 | <kbd>Win</kbd> + <kbd>O</kbd> | Cycle Modes (Quiet ➔ Balanced ➔ Performance ➔ Unleashed) + Show HUD Overlay |
 | <kbd>Fn</kbd> + <kbd>Q</kbd> | Toggle 5700 RPM Max Fan Mode + Show HUD Overlay |
 | <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd> | Emergency Keyboard Lock/Unlock |
