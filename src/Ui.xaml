@@ -297,8 +297,32 @@
     <RowDefinition Height="*"/>
   </Grid.RowDefinitions>
 
-  <!-- Animated WebGL/DirectX "Mesh drift" shader background -->
-  <Rectangle x:Name="ShaderBackground" Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False" Fill="#101010"/>
+  <!-- ==================== 21ST.DEV "SILK BLEND" GRADIENT BACKGROUND ==================== -->
+  <Grid Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False">
+    <!-- 1. Silk Blend Linear Gradient (170 degrees: #16130E @ 0%, #0C1617 @ 69%, #63959C @ 100%) -->
+    <Rectangle HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Rectangle.Fill>
+        <LinearGradientBrush StartPoint="0.413, 0.0" EndPoint="0.587, 1.0">
+          <GradientStop Color="#16130E" Offset="0.0"/>
+          <GradientStop Color="#0C1617" Offset="0.69"/>
+          <GradientStop Color="#63959C" Offset="1.0"/>
+        </LinearGradientBrush>
+      </Rectangle.Fill>
+    </Rectangle>
+
+    <!-- 2. Vignette Layer (52% transparent to 100% rgba(0,0,0,0.384)) -->
+    <Rectangle HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+      <Rectangle.Fill>
+        <RadialGradientBrush Center="0.5, 0.5" GradientOrigin="0.5, 0.5" RadiusX="0.75" RadiusY="0.75">
+          <GradientStop Color="#00000000" Offset="0.52"/>
+          <GradientStop Color="#62000000" Offset="1.0"/>
+        </RadialGradientBrush>
+      </Rectangle.Fill>
+    </Rectangle>
+
+    <!-- 3. Film Grain Overlay Layer (120x120 noise tile) -->
+    <Rectangle x:Name="GrainOverlay" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+  </Grid>
 
   <!-- ==================== DESKTOP TITLE BAR & TOP NAVIGATION ==================== -->
   <Border x:Name="TitleBar" Grid.Row="0" Background="Transparent" BorderThickness="0">

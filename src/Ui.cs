@@ -68,10 +68,8 @@ namespace Ohman {
         TranslateTransform railPillT;
         Canvas railCanvas;
         FrameworkElement rail, logoHost;
-        Rectangle shaderBackground;
-        MeshDriftEffect shaderEffect;
-        DispatcherTimer shaderTimer;
-        Stopwatch shaderWatch = new Stopwatch();
+        Rectangle grainOverlay;
+        int memTick;
         StackPanel navBottom;
         ColorSource accentSrc;
         SolidColorBrush accent;
@@ -205,9 +203,18 @@ namespace Ohman {
         [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
         [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr wp, IntPtr lp);
         [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+        [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr proc, IntPtr min, IntPtr max);
+        [DllImport("psapi.dll")] static extern int EmptyWorkingSet(IntPtr hwProc);
 
         public static void TrimMemory() {
-            try { GC.Collect(2, GCCollectionMode.Optimized, false); } catch { }
+            try {
+                GC.Collect(2, GCCollectionMode.Forced, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(2, GCCollectionMode.Forced, true);
+                var h = Process.GetCurrentProcess().Handle;
+                SetProcessWorkingSetSize(h, (IntPtr)(-1), (IntPtr)(-1));
+                EmptyWorkingSet(h);
+            } catch { }
         }
 
         public MainWindow(Engine engine, Sensors s, string screenshot, bool settingsOpen) {
@@ -277,19 +284,14 @@ namespace Ohman {
             Application.Current.SessionEnding += delegate { quietExit = true; ExitApp(); };   // logoff/shutdown: leave cleanly, and quietly
             StateChanged += delegate {
                 if (WindowState == WindowState.Minimized) {
-                    if (shaderTimer != null) shaderTimer.Stop();
                     WindowState = WindowState.Normal;
                     HideToTray();
                 }
             };
             IsVisibleChanged += delegate {
                 PollRate();
-                if (IsVisible) {
-                    ReadHardwareAsync();
-                    if (shaderTimer != null && !shaderTimer.IsEnabled) shaderTimer.Start();
-                } else {
-                    if (shaderTimer != null) shaderTimer.Stop();
-                }
+                if (IsVisible) ReadHardwareAsync();
+                else TrimMemory();
             };
             LocationChanged += delegate { if (IsVisible && WindowState == WindowState.Normal && Left > -30000 && !morphing) { E.S.WinX = (int)Left; E.S.WinY = (int)Top; } };
             KeyDown += delegate(object o, KeyEventArgs ke) { if (ke.Key == Key.Escape && !(Keyboard.FocusedElement is TextBox)) HideToTray(); };
@@ -305,6 +307,8 @@ namespace Ohman {
                         if (E.S.Fan == FanMode.Turbo6200) UpdateTurbo6200Block();
                     }
                 }
+                memTick++;
+                if (memTick % 8 == 0) TrimMemory();
             };
             PollRate();
             UpdateOverlay();
@@ -333,37 +337,44 @@ namespace Ohman {
             if (o == null) throw new InvalidOperationException("XAML element missing: " + name);
             return o;
         }
-        void InitShaderBackground() {
+        static ImageBrush CreateGrainBrush() {
             try {
-                shaderBackground = root.FindName("ShaderBackground") as Rectangle;
-                if (shaderBackground != null) {
-                    shaderEffect = new MeshDriftEffect();
-                    shaderBackground.Effect = shaderEffect;
-                    shaderBackground.SizeChanged += delegate { UpdateShaderResolution(); };
-                    shaderWatch.Start();
-                    shaderTimer = new DispatcherTimer(DispatcherPriority.Render);
-                    shaderTimer.Interval = TimeSpan.FromMilliseconds(33); // ~30 fps fluid drift
-                    shaderTimer.Tick += delegate {
-                        if (shaderEffect != null && IsVisible && WindowState != WindowState.Minimized) {
-                            shaderEffect.Time = shaderWatch.Elapsed.TotalSeconds * 0.73;
-                        }
-                    };
-                    shaderTimer.Start();
+                int w = 120, h = 120;
+                var rand = new Random(425513060); // 21st.dev exact seed
+                byte[] pixels = new byte[w * h * 4];
+                for (int i = 0; i < w * h; i++) {
+                    byte v = (byte)rand.Next(0, 256);
+                    pixels[i * 4 + 0] = v;
+                    pixels[i * 4 + 1] = v;
+                    pixels[i * 4 + 2] = v;
+                    pixels[i * 4 + 3] = (byte)rand.Next(15, 65);
                 }
-            } catch (Exception ex) {
-                Log.Write("shader bg init: " + ex.Message);
+                var bmp = BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, pixels, w * 4);
+                bmp.Freeze();
+                var b = new ImageBrush(bmp) {
+                    TileMode = TileMode.Tile,
+                    Viewport = new Rect(0, 0, 120, 120),
+                    ViewportUnits = BrushMappingMode.Absolute,
+                    Opacity = 0.22
+                };
+                b.Freeze();
+                return b;
+            } catch {
+                return null;
             }
         }
-        void UpdateShaderResolution() {
-            if (shaderEffect == null || shaderBackground == null) return;
-            var src = PresentationSource.FromVisual(this);
-            double dpr = src != null && src.CompositionTarget != null ? src.CompositionTarget.TransformToDevice.M11 : 1.0;
-            double w = Math.Max(1.0, (shaderBackground.ActualWidth > 0 ? shaderBackground.ActualWidth : (ActualWidth > 0 ? ActualWidth : 1042)) * dpr);
-            double h = Math.Max(1.0, (shaderBackground.ActualHeight > 0 ? shaderBackground.ActualHeight : (ActualHeight > 0 ? ActualHeight : 720)) * dpr);
-            shaderEffect.Resolution = new Size(w, h);
+        void InitSilkBackground() {
+            try {
+                grainOverlay = root.FindName("GrainOverlay") as Rectangle;
+                if (grainOverlay != null) {
+                    grainOverlay.Fill = CreateGrainBrush();
+                }
+            } catch (Exception ex) {
+                Log.Write("silk bg init: " + ex.Message);
+            }
         }
         void FindAll() {
-            InitShaderBackground();
+            InitSilkBackground();
             rail = F<FrameworkElement>("Rail");
             railCanvas = F<Canvas>("RailCanvas");
             railPill = F<Border>("RailPill");
@@ -1213,6 +1224,7 @@ namespace Ohman {
             Morph(animate);
             if (live) CrossFade(old, page, (RailW + pageHost.Width) * Math.Ceiling(NaturalHeight()) > was);
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, (Action)delegate { PlaceRailPill(animate); });
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, (Action)TrimMemory);
             Log.Write("page " + p);
         }
 
@@ -3217,10 +3229,10 @@ namespace Ohman {
             else if (page == "settings") Navigate(Page.Settings, false);
             else if (page == "update") ShowUpdateRow();          // where the rail button goes: settings, at the update row
             Morph(false);
-            UpdateShaderResolution();
-            if (screenshotPath != null && shaderEffect != null) shaderEffect.Time = 1.0;
             StateChanged += delegate { if (WindowState == WindowState.Minimized) TrimMemory(); };
-            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, (Action)TrimMemory);
+            var initTrimTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+            initTrimTimer.Tick += delegate { initTrimTimer.Stop(); TrimMemory(); };
+            initTrimTimer.Start();
             if (Program.JustUpdated) ShowToast("Updated to " + Program.Version, false);
             if (Program.FlashTest) Flash("Performance mode", ModeSubs[2], 2);
             if (screenshotPath == null) return;
