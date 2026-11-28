@@ -301,7 +301,7 @@
   <Rectangle x:Name="ShaderBackground" Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsHitTestVisible="False" Fill="#101010"/>
 
   <!-- ==================== DESKTOP TITLE BAR & TOP NAVIGATION ==================== -->
-  <Border x:Name="TitleBar" Grid.Row="0" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Line2}" BorderThickness="0,0,0,1">
+  <Border x:Name="TitleBar" Grid.Row="0" Background="Transparent" BorderThickness="0">
     <Grid>
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto"/>
@@ -344,14 +344,14 @@
     </Grid.ColumnDefinitions>
 
     <!-- Sidebar Rail -->
-    <Border x:Name="Rail" Background="{StaticResource Sunken}" BorderBrush="{StaticResource Line2}" BorderThickness="0,0,1,0">
+    <Border x:Name="Rail" Background="Transparent" BorderThickness="0">
       <Grid x:Name="RailGrid">
         <Grid.RowDefinitions>
           <RowDefinition Height="*"/>
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <Canvas x:Name="RailCanvas" Grid.RowSpan="2">
-          <Border x:Name="RailPill" Width="42" Height="42" CornerRadius="12" Background="{StaticResource Pill}" Opacity="0">
+          <Border x:Name="RailPill" Width="42" Height="42" CornerRadius="12" Background="#26FFFFFF" BorderBrush="#33FFFFFF" BorderThickness="1" Opacity="0">
             <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
           </Border>
         </Canvas>
