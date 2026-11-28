@@ -337,8 +337,11 @@ namespace Ohman {
         int cachedHwFanTop = -2;
         public int HardwareFanTableMax {
             get {
-                if (cachedHwFanTop == -2) cachedHwFanTop = Hw.GetFanTableMax();
-                return cachedHwFanTop > 0 ? cachedHwFanTop : P.Curve.Ceiling;
+                if (cachedHwFanTop == -2) {
+                    try { cachedHwFanTop = Hw.GetFanTableMax(); }
+                    catch { cachedHwFanTop = -1; }
+                }
+                return cachedHwFanTop > 0 ? cachedHwFanTop : (P != null && P.Curve != null ? P.Curve.Ceiling : 46);
             }
         }
         public bool Supports5700Rpm { get { return HardwareFanTableMax >= 57; } }

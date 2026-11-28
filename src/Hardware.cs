@@ -198,11 +198,15 @@ namespace Ohman {
             return n > 0 ? n : (asked ? 0 : -1);
         }
         public int GetFanTableMax() {
-            var d = Call(OP_FAN_TABLE_GET, Z4, 128);
-            if (d.Length < 2) return -1;
-            int n = Math.Min((int)d[1], 40), top = -1;
-            for (int i = 0; i < n; i++) { int o = 2 + 3 * i; if (o + 1 >= d.Length) break; top = Math.Max(top, Math.Max(d[o], d[o + 1])); }
-            return top;
+            try {
+                var d = Call(OP_FAN_TABLE_GET, Z4, 128);
+                if (d.Length < 2) return -1;
+                int n = Math.Min((int)d[1], 40), top = -1;
+                for (int i = 0; i < n; i++) { int o = 2 + 3 * i; if (o + 1 >= d.Length) break; top = Math.Max(top, Math.Max(d[o], d[o + 1])); }
+                return top;
+            } catch {
+                return -1;
+            }
         }
 
         public int[] GetFanLevels() {
