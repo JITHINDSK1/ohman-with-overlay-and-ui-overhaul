@@ -1,6 +1,7 @@
 # build output
 *.exe
 *.pdb
+*.zip
 preview/
 
 # runtime files written next to the executable

@@ -21,18 +21,19 @@
 
 ## 📥 Download & Easy Installation
 
-### Option 1: 1-Click Installer (Recommended)
-1. Download **[OMI-v2.0.0-Setup.zip](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/OMI-v2.0.0-Setup.zip)** from the [Latest Release](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest).
-2. Extract the `.zip` archive.
-3. Right-click **`install.cmd`** and select **Run as administrator** (or double-click to run).
-4. **Done!**
+### Option 1: Standalone 1-Click Installer (Recommended)
+1. Download **[OMI-Setup.exe](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/OMI-Setup.exe)** from the [Latest Release](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest).
+2. Run **`OMI-Setup.exe`**.
+3. **Done!**
+   - Automatically registers the verified publisher certificate (`JITHINDSK1`) to prevent Windows SmartScreen ("Windows protected your PC") warnings.
+   - Automatically unblocks downloaded binary streams.
    - Installs OMI cleanly into `%LOCALAPPDATA%\Programs\OMI`.
    - Creates Start Menu and Desktop shortcuts.
-   - Automatically registers elevated Windows logon autostart (no UAC popups every time you reboot).
+   - Automatically configures elevated Windows logon autostart (no UAC popups every time you reboot).
    - Starts running immediately in the system tray.
 
 > [!TIP]
-> To cleanly uninstall anytime, simply right-click `uninstall.cmd` and select **Run as administrator**.
+> Alternatively, download **[OMI-v2.0.0-Setup.zip](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/OMI-v2.0.0-Setup.zip)** which includes `OMI-Setup.exe`, `OMI.exe`, `install.cmd`, `uninstall.cmd`, and the `JITHINDSK1.cer` public certificate. To cleanly uninstall anytime, run `uninstall.cmd`.
 
 ### Option 2: Standalone Portable Binary
 If you prefer not to install anything:

@@ -10,8 +10,8 @@
 using System.Reflection;
 
 [assembly: AssemblyProduct("OMI")]
-[assembly: AssemblyCompany("OMI")]
-[assembly: AssemblyCopyright("Copyright (C) 2026 OMI contributors - GPL-3.0-or-later")]
+[assembly: AssemblyCompany("JITHINDSK1")]
+[assembly: AssemblyCopyright("Copyright (C) 2026 JITHINDSK1 - GPL-3.0-or-later")]
 [assembly: AssemblyVersion(Ohman.Meta.Version)]
 [assembly: AssemblyFileVersion(Ohman.Meta.Version)]
 [assembly: AssemblyInformationalVersion(Ohman.Meta.Version)]

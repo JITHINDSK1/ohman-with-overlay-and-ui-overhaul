@@ -28,4 +28,21 @@ if /i "%~1"=="preview" (echo Built preview\OMI.exe & exit /b 0)
 if errorlevel 1 exit /b 1
 "%CSC%" /nologo /target:exe /platform:x64 /optimize+ /warn:1 /out:tools\omenprobe.exe /r:System.Management.dll tools\omenprobe.cs src\Meta.cs
 if errorlevel 1 exit /b 1
-echo Built OMI.exe, preview\OMI.exe and tools\omenprobe.exe
+
+:: 4. Sign OMI.exe before embedding into setup
+if exist tools\sign.ps1 (
+    powershell -NoProfile -ExecutionPolicy Bypass -File tools\sign.ps1 -Files OMI.exe,preview\OMI.exe
+)
+
+:: 5. Build standalone installer OMI-Setup.exe
+set SETUP_RES=/resource:OMI.exe,OMI.exe /resource:uninstall.cmd,uninstall.cmd
+if exist JITHINDSK1.cer set SETUP_RES=%SETUP_RES% /resource:JITHINDSK1.cer,JITHINDSK1.cer
+"%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:OMI-Setup.exe /win32manifest:setup.manifest %ICO% /r:System.Windows.Forms.dll /r:System.Drawing.dll %SETUP_RES% src\Setup.cs
+if errorlevel 1 exit /b 1
+
+:: 6. Sign OMI-Setup.exe
+if exist tools\sign.ps1 (
+    powershell -NoProfile -ExecutionPolicy Bypass -File tools\sign.ps1 -Files OMI-Setup.exe
+)
+
+echo Built OMI.exe, preview\OMI.exe, tools\omenprobe.exe, and OMI-Setup.exe

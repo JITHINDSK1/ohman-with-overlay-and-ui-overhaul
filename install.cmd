@@ -32,6 +32,13 @@ if not exist "OMI.exe" (
     exit /b 1
 )
 
+:: 2b. Trust verified publisher certificate (JITHINDSK1) if present
+if exist "JITHINDSK1.cer" (
+    echo [i] Registering trusted publisher certificate (JITHINDSK1)...
+    certutil -addstore -f "Root" "JITHINDSK1.cer" >nul 2>&1
+    certutil -addstore -f "TrustedPublisher" "JITHINDSK1.cer" >nul 2>&1
+)
+
 :: 3. Stop running instances if any
 echo [1/5] Stopping any running instances...
 taskkill /F /IM OMI.exe >nul 2>&1
@@ -49,6 +56,7 @@ if %errorLevel% neq 0 (
     pause
     exit /b 1
 )
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Unblock-File -Path '%TARGET_EXE%' -ErrorAction SilentlyContinue" >nul 2>&1
 
 :: 5. Create Shortcuts (Start Menu & Desktop)
 echo [3/5] Creating Start Menu and Desktop shortcuts...
