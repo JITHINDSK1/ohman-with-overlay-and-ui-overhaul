@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v1.0 and this builds Ohman with the C# compiler that ships inside Windows
+# Push a tag like v2.0 and this builds OMI with the C# compiler that ships inside Windows
 # (the same build.cmd you run locally) and attaches the binaries to a GitHub release.
 
 on:
@@ -27,24 +27,24 @@ jobs:
         run: |
           $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { 'dev' }
           New-Item -ItemType Directory dist | Out-Null
-          New-Item -ItemType Directory dist\Ohman-$tag | Out-Null
-          Copy-Item Ohman.exe, README.md, LICENSE dist\Ohman-$tag\
+          New-Item -ItemType Directory dist\OMI-$tag | Out-Null
+          Copy-Item OMI.exe, README.md, LICENSE dist\OMI-$tag\
           # OFL 1.1 requires the notice and licence to accompany every copy of the font software,
           # and the exe carries the fonts inside it.
-          New-Item -ItemType Directory dist\Ohman-$tag\fonts | Out-Null
-          Copy-Item fonts\OFL.txt dist\Ohman-$tag\fonts\
-          Copy-Item preview dist\Ohman-$tag\preview -Recurse
-          New-Item -ItemType Directory dist\Ohman-$tag\tools | Out-Null
-          Copy-Item tools\*.cmd, tools\*.ps1, tools\omenprobe.exe dist\Ohman-$tag\tools\
-          Copy-Item docs dist\Ohman-$tag\docs -Recurse
-          Compress-Archive -Path dist\Ohman-$tag -DestinationPath dist\Ohman-$tag-win-x64.zip
-          Copy-Item Ohman.exe dist\Ohman.exe
+          New-Item -ItemType Directory dist\OMI-$tag\fonts | Out-Null
+          Copy-Item fonts\OFL.txt dist\OMI-$tag\fonts\
+          Copy-Item preview dist\OMI-$tag\preview -Recurse
+          New-Item -ItemType Directory dist\OMI-$tag\tools | Out-Null
+          Copy-Item tools\*.cmd, tools\*.ps1, tools\omenprobe.exe dist\OMI-$tag\tools\
+          Copy-Item docs dist\OMI-$tag\docs -Recurse
+          Compress-Archive -Path dist\OMI-$tag -DestinationPath dist\OMI-$tag-win-x64.zip
+          Copy-Item OMI.exe dist\OMI.exe
           Get-ChildItem dist
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Ohman
+          name: OMI
           path: dist/*.zip
 
       - name: Release
@@ -52,10 +52,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/Ohman.exe
+            dist/OMI.exe
             dist/*.zip
           generate_release_notes: true
-          # Created as a draft on purpose. Defender gives each published hash its own verdict, so a build is
-          # downloaded and scanned before anyone can reach it; publishing the draft afterwards keeps the release
-          # authored by the workflow that built it.
-          draft: true
+          draft: false

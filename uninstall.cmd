@@ -24,7 +24,6 @@ if %errorLevel% neq 0 (
 :: 2. Stop running instances
 echo [1/4] Stopping OMI...
 taskkill /F /IM OMI.exe >nul 2>&1
-taskkill /F /IM Ohman.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 :: 3. Remove scheduled tasks

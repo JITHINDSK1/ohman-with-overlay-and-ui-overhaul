@@ -23,11 +23,9 @@ if %errorLevel% neq 0 (
 
 cd /d "%~dp0"
 
-:: 2. Locate OMI.exe (or Ohman.exe)
-set "SOURCE_EXE=OMI.exe"
-if not exist "OMI.exe" if exist "Ohman.exe" set "SOURCE_EXE=Ohman.exe"
-if not exist "%SOURCE_EXE%" (
-    echo [X] Error: Neither 'OMI.exe' nor 'Ohman.exe' was found in this folder!
+:: 2. Locate OMI.exe
+if not exist "OMI.exe" (
+    echo [X] Error: 'OMI.exe' was not found in this folder!
     echo     Please make sure 'OMI.exe' and 'install.cmd' are in the same directory.
     echo.
     pause
@@ -37,7 +35,6 @@ if not exist "%SOURCE_EXE%" (
 :: 3. Stop running instances if any
 echo [1/5] Stopping any running instances...
 taskkill /F /IM OMI.exe >nul 2>&1
-taskkill /F /IM Ohman.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
 :: 4. Set installation directory
@@ -46,7 +43,7 @@ set "TARGET_EXE=%INSTALL_DIR%\OMI.exe"
 
 echo [2/5] Installing to: %INSTALL_DIR%
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-copy /Y "%SOURCE_EXE%" "%TARGET_EXE%" >nul
+copy /Y "OMI.exe" "%TARGET_EXE%" >nul
 if %errorLevel% neq 0 (
     echo [X] Failed to copy %SOURCE_EXE% to target directory.
     pause

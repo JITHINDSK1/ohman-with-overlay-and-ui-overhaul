@@ -13,21 +13,19 @@ set RES=/resource:src\Ui.xaml,Ohman.Ui.xaml /resource:src\Ui.xaml,OMI.Ui.xaml /r
 if not exist preview mkdir preview
 
 :: 1. preview build without an icon, used to generate app.ico
-"%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:preview\Ohman.exe /win32manifest:app.demo.manifest %RES% %REFS% %SRC%
+"%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:preview\OMI.exe /win32manifest:app.demo.manifest %RES% %REFS% %SRC%
 if errorlevel 1 exit /b 1
-preview\Ohman.exe --make-ico app.ico
+preview\OMI.exe --make-ico app.ico
 if exist app.ico (set ICO=/win32icon:app.ico) else (set ICO=)
 
 :: 2. preview build with the icon
 "%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:preview\OMI.exe /win32manifest:app.demo.manifest %ICO% %RES% %REFS% %SRC%
 if errorlevel 1 exit /b 1
-copy /y preview\OMI.exe preview\Ohman.exe >nul 2>&1
 if /i "%~1"=="preview" (echo Built preview\OMI.exe & exit /b 0)
 
 :: 3. the real thing + the probe tool
 "%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:OMI.exe /win32manifest:app.manifest %ICO% %RES% %REFS% %SRC%
 if errorlevel 1 exit /b 1
-copy /y OMI.exe Ohman.exe >nul 2>&1
 "%CSC%" /nologo /target:exe /platform:x64 /optimize+ /warn:1 /out:tools\omenprobe.exe /r:System.Management.dll tools\omenprobe.cs src\Meta.cs
 if errorlevel 1 exit /b 1
 echo Built OMI.exe, preview\OMI.exe and tools\omenprobe.exe
