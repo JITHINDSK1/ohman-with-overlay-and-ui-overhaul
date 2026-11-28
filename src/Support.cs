@@ -104,7 +104,7 @@ namespace Ohman {
         /// its firmware refused, and the report itself arrives with one Ctrl+V from the clipboard.</summary>
         static string Summary(Engine e) {
             var sb = new StringBuilder();
-            sb.AppendLine("(filled in by Ohman " + Program.Version + " - the full report is on your clipboard, paste it in the box below)");
+            sb.AppendLine("(filled in by OMI " + Program.Version + " - the full report is on your clipboard, paste it in the box below)");
             sb.AppendLine();
             sb.AppendLine("Board " + e.Board + ", " + (e.Supported ? (e.Generic ? "driven from the firmware's own answers" : "verified profile") : "NOT DRIVEN - read-only"));
             if (e.P != null)
@@ -154,8 +154,8 @@ namespace Ohman {
 
         public static string Report(Engine e) {
             var sb = new StringBuilder();
-            sb.AppendLine("Ohman support report  " + DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
-            sb.AppendLine("Ohman " + Program.Version + (e.Hw.IsDemo ? "  (SIMULATED HARDWARE - not a real reading)" : ""));
+            sb.AppendLine("OMI support report  " + DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+            sb.AppendLine("OMI " + Program.Version + (e.Hw.IsDemo ? "  (SIMULATED HARDWARE - not a real reading)" : ""));
             sb.AppendLine("----------------------------------------");
 
             // ---- the machine
@@ -183,8 +183,8 @@ namespace Ohman {
             sb.AppendLine("Elevated:  " + (!e.Hw.IsDemo));
             sb.AppendLine();
 
-            // ---- what Ohman decided, and why
-            sb.AppendLine("Ohman's decision");
+            // ---- what OMI decided, and why
+            sb.AppendLine("OMI's decision");
             sb.AppendLine("  profile:  " + (e.Supported ? e.P.Name + (e.Generic ? "  [generic, built from the firmware]" : "  [verified entry]") : "UNSUPPORTED - read-only, nothing is written"));
             sb.AppendLine("  notes:    " + (e.P != null && e.P.Notes != null ? e.P.Notes : ""));
             sb.AppendLine("  bios ok:  " + e.BiosOk + (e.LastError.Length > 0 ? "   last error: " + Scrub(e.LastError) : ""));
@@ -384,8 +384,8 @@ namespace Ohman {
             } catch { sb.AppendLine("  (nvidia-smi not present; AMD or iGPU only)"); }
             sb.AppendLine();
 
-            // ---- and what Ohman itself logged getting here
-            sb.AppendLine("Ohman log (the decisions, not the whole file)");
+            // ---- and what OMI itself logged getting here
+            sb.AppendLine("OMI log (the decisions, not the whole file)");
             try {
                 var keep = new List<string>();
                 foreach (string line in System.IO.File.ReadLines(Log.Path)) {

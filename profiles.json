@@ -1,0 +1,117 @@
+﻿{
+  "ActiveIndex": 4,
+  "Profiles": [
+    {
+      "Id": "390e45ecfdb84ba7b2599208ddc970dd",
+      "Name": "Gaming",
+      "ModeIndex": 3,
+      "FanMode": 0,
+      "FanRpm": 0,
+      "PowerGain": 15,
+      "LightEffect": 2,
+      "LightHex": "#9B5DE5",
+      "LightLevel": 100,
+      "Triggers": [
+        {
+          "ProcessName": "VALORANT-Win64-Shipping",
+          "DisplayName": "Valorant",
+          "TargetFanRpm": 57,
+          "TargetModeIndex": 3,
+          "Enabled": true
+        },
+        {
+          "ProcessName": "cs2",
+          "DisplayName": "Counter-Strike 2",
+          "TargetFanRpm": 57,
+          "TargetModeIndex": 3,
+          "Enabled": true
+        }
+      ]
+    },
+    {
+      "Id": "cd1e564c0ea141d78aca772b81f00734",
+      "Name": "Productivity",
+      "ModeIndex": 0,
+      "FanMode": 0,
+      "FanRpm": 33,
+      "PowerGain": 0,
+      "LightEffect": 0,
+      "LightHex": "#00E5FF",
+      "LightLevel": 80,
+      "Triggers": [
+        {
+          "ProcessName": "blender",
+          "DisplayName": "Blender",
+          "TargetFanRpm": 48,
+          "TargetModeIndex": 2,
+          "Enabled": true
+        }
+      ]
+    },
+    {
+      "Id": "ab2ab2a187b2439c9a383fe36a38304e",
+      "Name": "Silent Night",
+      "ModeIndex": 0,
+      "FanMode": 2,
+      "FanRpm": 0,
+      "PowerGain": 0,
+      "LightEffect": -1,
+      "LightHex": "#FF8C00",
+      "LightLevel": 20,
+      "Triggers": [
+      ]
+    },
+    {
+      "Id": "e42c16376847471c9afa358dc23d4839",
+      "Name": "Heat Wipe",
+      "ModeIndex": 3,
+      "FanMode": 4,
+      "FanRpm": 62,
+      "PowerGain": 15,
+      "LightEffect": 0,
+      "LightHex": "#FF0033",
+      "LightLevel": 100,
+      "Triggers": [
+      ]
+    },
+    {
+      "Id": "2c5cd203de75466881b9929a0a067416",
+      "Name": "UNI",
+      "ModeIndex": 0,
+      "FanMode": 2,
+      "FanRpm": 18,
+      "PowerGain": 0,
+      "LightEffect": -1,
+      "LightHex": "#00E5FF",
+      "LightLevel": 100,
+      "Triggers": [
+      ]
+    },
+    {
+      "Id": "3179936d053741f4b13e7892f17996fe",
+      "Name": "Profile 6",
+      "ModeIndex": 1,
+      "FanMode": 0,
+      "FanRpm": 33,
+      "PowerGain": 0,
+      "LightEffect": 0,
+      "LightHex": "#00E5FF",
+      "LightLevel": 80,
+      "Triggers": [
+      ]
+    },
+    {
+      "Id": "ff37ddda6c3a4e68bee700333505c908",
+      "Name": "UNI (Copy)",
+      "ModeIndex": 0,
+      "FanMode": 2,
+      "FanRpm": 18,
+      "PowerGain": 0,
+      "LightEffect": -1,
+      "LightHex": "#00E5FF",
+      "LightLevel": 100,
+      "Triggers": [
+      ]
+    }
+  ]
+}

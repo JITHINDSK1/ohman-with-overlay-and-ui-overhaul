@@ -101,7 +101,7 @@ namespace Ohman {
             E            = engine;
             this.sensors = sensors;
 
-            Title              = "Ohman Overlay";
+            Title              = "OMI Overlay";
             WindowStyle        = WindowStyle.None;
             AllowsTransparency = true;
             Background         = Brushes.Transparent;
@@ -310,7 +310,7 @@ namespace Ohman {
         // ====================================================================
 
         void OnApply() {
-            if (E.ReadOnly) { SetStatus("Read-only: board not recognised by Ohman", WarnBrush); return; }
+            if (E.ReadOnly) { SetStatus("Read-only: board not recognised by OMI", WarnBrush); return; }
             if (!E.CanSetFanLevels) { SetStatus("Fan level writes refused by this firmware", WarnBrush); return; }
             int maxLvl = E.IsEme ? Math.Max(57, E.P.Curve.Ceiling) : E.P.Curve.Ceiling;
             int v1 = (int)sl1.Value, v2 = (int)sl2.Value;
@@ -324,7 +324,7 @@ namespace Ohman {
         }
 
         void On5700Rpm() {
-            if (E.ReadOnly) { SetStatus("Read-only: board not recognised by Ohman", WarnBrush); return; }
+            if (E.ReadOnly) { SetStatus("Read-only: board not recognised by OMI", WarnBrush); return; }
             if (!E.CanSetFanLevels) { SetStatus("Fan level writes refused by this firmware", WarnBrush); return; }
             if (!E.S.EmeConfirmed) {
                 var res = MessageBox.Show(

@@ -22,7 +22,7 @@ namespace Ohman {
     public static class Update {
         public const string Repo = "P4R1H/Ohman";
         public static string ReleasesUrl { get { return "https://github.com/" + Repo + "/releases/latest"; } }
-        const string AssetName = "Ohman.exe";
+        const string AssetName = "OMI.exe";
 
         // ---------- where the pieces live ----------
         static string Dir { get { return AppDomain.CurrentDomain.BaseDirectory; } }
@@ -42,7 +42,7 @@ namespace Ohman {
         public static string OldPath { get { return Path.Combine(Dir, Program.FileStem + ".old.exe"); } }
 
         /// <summary>False when this build must never replace itself. The development tree is the case that
-        /// matters: Ohman.exe builds to the repository root, so a working copy would otherwise overwrite the
+        /// matters: OMI.exe builds to the repository root, so a working copy would otherwise overwrite the
         /// binary being worked on the first time it saw a published release.</summary>
         public static bool CanReplace {
             get {
@@ -73,6 +73,7 @@ namespace Ohman {
                 // size and browser_download_url both follow name inside it, and nothing nested in between carries
                 // either key.
                 int at = body.IndexOf("\"name\":\"" + AssetName + "\"", StringComparison.OrdinalIgnoreCase);
+                if (at < 0) at = body.IndexOf("\"name\":\"Ohman.exe\"", StringComparison.OrdinalIgnoreCase);
                 if (at >= 0) {
                     r.AssetUrl = Field(body, "browser_download_url", at);
                     long n;

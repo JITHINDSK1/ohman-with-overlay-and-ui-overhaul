@@ -68,6 +68,10 @@ namespace Ohman {
         TranslateTransform railPillT;
         Canvas railCanvas;
         FrameworkElement rail, logoHost;
+        Rectangle shaderBackground;
+        MeshDriftEffect shaderEffect;
+        DispatcherTimer shaderTimer;
+        Stopwatch shaderWatch = new Stopwatch();
         StackPanel navBottom;
         ColorSource accentSrc;
         SolidColorBrush accent;
@@ -271,8 +275,22 @@ namespace Ohman {
             Loaded += OnLoaded;
             Closing += delegate(object o, System.ComponentModel.CancelEventArgs ce) { if (!exiting) { ce.Cancel = true; HideToTray(); } };
             Application.Current.SessionEnding += delegate { quietExit = true; ExitApp(); };   // logoff/shutdown: leave cleanly, and quietly
-            StateChanged += delegate { if (WindowState == WindowState.Minimized) { WindowState = WindowState.Normal; HideToTray(); } };
-            IsVisibleChanged += delegate { PollRate(); if (IsVisible) ReadHardwareAsync(); };
+            StateChanged += delegate {
+                if (WindowState == WindowState.Minimized) {
+                    if (shaderTimer != null) shaderTimer.Stop();
+                    WindowState = WindowState.Normal;
+                    HideToTray();
+                }
+            };
+            IsVisibleChanged += delegate {
+                PollRate();
+                if (IsVisible) {
+                    ReadHardwareAsync();
+                    if (shaderTimer != null && !shaderTimer.IsEnabled) shaderTimer.Start();
+                } else {
+                    if (shaderTimer != null) shaderTimer.Stop();
+                }
+            };
             LocationChanged += delegate { if (IsVisible && WindowState == WindowState.Normal && Left > -30000 && !morphing) { E.S.WinX = (int)Left; E.S.WinY = (int)Top; } };
             KeyDown += delegate(object o, KeyEventArgs ke) { if (ke.Key == Key.Escape && !(Keyboard.FocusedElement is TextBox)) HideToTray(); };
 
@@ -304,7 +322,8 @@ namespace Ohman {
 
         // ---------- construction ----------
         static FrameworkElement LoadXaml() {
-            using (var st = Assembly.GetExecutingAssembly().GetManifestResourceStream("Ohman.Ui.xaml")) {
+            var asm = Assembly.GetExecutingAssembly();
+            using (var st = asm.GetManifestResourceStream("OMI.Ui.xaml") ?? asm.GetManifestResourceStream("Ohman.Ui.xaml")) {
                 if (st == null) throw new InvalidOperationException("embedded Ui.xaml missing");
                 return (FrameworkElement)XamlReader.Load(st);
             }
@@ -314,7 +333,37 @@ namespace Ohman {
             if (o == null) throw new InvalidOperationException("XAML element missing: " + name);
             return o;
         }
+        void InitShaderBackground() {
+            try {
+                shaderBackground = root.FindName("ShaderBackground") as Rectangle;
+                if (shaderBackground != null) {
+                    shaderEffect = new MeshDriftEffect();
+                    shaderBackground.Effect = shaderEffect;
+                    shaderBackground.SizeChanged += delegate { UpdateShaderResolution(); };
+                    shaderWatch.Start();
+                    shaderTimer = new DispatcherTimer(DispatcherPriority.Render);
+                    shaderTimer.Interval = TimeSpan.FromMilliseconds(33); // ~30 fps fluid drift
+                    shaderTimer.Tick += delegate {
+                        if (shaderEffect != null && IsVisible && WindowState != WindowState.Minimized) {
+                            shaderEffect.Time = shaderWatch.Elapsed.TotalSeconds * 0.73;
+                        }
+                    };
+                    shaderTimer.Start();
+                }
+            } catch (Exception ex) {
+                Log.Write("shader bg init: " + ex.Message);
+            }
+        }
+        void UpdateShaderResolution() {
+            if (shaderEffect == null || shaderBackground == null) return;
+            var src = PresentationSource.FromVisual(this);
+            double dpr = src != null && src.CompositionTarget != null ? src.CompositionTarget.TransformToDevice.M11 : 1.0;
+            double w = Math.Max(1.0, (shaderBackground.ActualWidth > 0 ? shaderBackground.ActualWidth : (ActualWidth > 0 ? ActualWidth : 1042)) * dpr);
+            double h = Math.Max(1.0, (shaderBackground.ActualHeight > 0 ? shaderBackground.ActualHeight : (ActualHeight > 0 ? ActualHeight : 720)) * dpr);
+            shaderEffect.Resolution = new Size(w, h);
+        }
         void FindAll() {
+            InitShaderBackground();
             rail = F<FrameworkElement>("Rail");
             railCanvas = F<Canvas>("RailCanvas");
             railPill = F<Border>("RailPill");
@@ -828,7 +877,7 @@ namespace Ohman {
             // software owes the owner a way back that does not depend on waiting for the author to ship a fix.
             btnReset.MouseLeftButtonUp += delegate {
                 string ask = "Undo everything " + Program.DisplayName + " changed, then quit?\n\n"
-                    + "It re-enables OMEN Gaming Hub's tasks, gives the keyboard back to Windows, puts the refresh rate back, "
+                    + "It re-enables HP background services, gives the keyboard back to Windows, puts the refresh rate back, "
                     + "sets the mode to balanced, hands the fans back to the firmware, turns the backlight on, and deletes its "
                     + "own settings and log.\n\n"
                     + "The graphics mode is left as you set it, because changing that needs a restart.\n\n"
@@ -1105,7 +1154,7 @@ namespace Ohman {
         void SwitchGraphics(int m) {
             int current = E.GpuModePending >= 0 ? E.GpuModePending : E.GpuMode;
             if (m == current) return;
-            var answer = MessageBox.Show("Switch graphics to " + Engine.GpuModeNames[m] + "?\n\nThe change is written now and takes effect after a restart, the same way OMEN Gaming Hub does it.\n\nRestart now?",
+            var answer = MessageBox.Show("Switch graphics to " + Engine.GpuModeNames[m] + "?\n\nThe change is written now and takes effect after a restart.\n\nRestart now?",
                 Program.DisplayName, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
             if (answer == MessageBoxResult.Cancel) { Refresh(); return; }
             if (!E.SetGpuMode(m)) { Refresh(); return; }
@@ -1367,7 +1416,7 @@ namespace Ohman {
             kbdModes = new LinkSeg(Choice.Light, 22, 13.5, 4, new[] { null, null, "The zone colours pulse", "Every zone through the spectrum together", "The spectrum travels across the zones", "Hand the keyboard to Windows Dynamic Lighting" });
             F<Border>("KbdModeHost").Child = kbdModes;
             if (E.Light.Inert)
-                for (int i = 1; i <= 4; i++) kbdModes.SetEnabled(i, false, "This keyboard offers no lighting interface Ohman can drive; see the note below");
+                for (int i = 1; i <= 4; i++) kbdModes.SetEnabled(i, false, "This keyboard offers no lighting interface OMI can drive; see the note below");
             kbdModes.Picked += delegate(int i) {
                 int m = Choice.LightMode(i), fx = Choice.LightEffect(i);
                 E.S.Light = m;
@@ -1545,7 +1594,7 @@ namespace Ohman {
             // Reaching here means both ways in failed: HP's firmware answers and lights nothing, and this keyboard
             // offers no HID lighting interface either. Say which, so it does not read as "per-key is unsupported".
             txtKbdInfo.Text = inert && m != 2
-                ? "Ohman cannot light this keyboard. HP's firmware interface answers for per-key boards but does nothing, and this keyboard offers no lighting interface of its own. Windows Dynamic Lighting can still light it. Run Ohman.exe --lamps and open an issue with what it prints."
+                ? "OMI cannot light this keyboard. HP's firmware interface answers for per-key boards but does nothing, and this keyboard offers no lighting interface of its own. Windows Dynamic Lighting can still light it. Run OMI.exe --lamps and open an issue with what it prints."
                 : m == 0 ? "The backlight is off. Pick a mode to turn it back on, or press the keyboard backlight key."
                 : (WinLighting.Present || E.Hw.IsDemo ? "Windows Dynamic Lighting has the keyboard. Its colours and effects come from Windows settings."
                                                       : "No Dynamic Lighting device for this keyboard was found; Windows cannot drive it.");
@@ -2788,7 +2837,7 @@ namespace Ohman {
             dotHb.Fill = fresh ? Ui.OkBrush : Ui.WarnBrush;
             // A firmware without the fan table reports no count; saying "-1 fans" is worse than saying nothing.
             txtFoot.Text = ShortModel() + (E.FanCount > 0 ? " · " + E.FanCount + " fans" : "");
-            txtFoot.ToolTip = "Ohman is driving this laptop's firmware" + (fresh ? ", last refreshed " + E.LastHeartbeat.ToString("HH:mm:ss") : "; the refresh is overdue");
+            txtFoot.ToolTip = "OMI is driving this laptop's firmware" + (fresh ? ", last refreshed " + E.LastHeartbeat.ToString("HH:mm:ss") : "; the refresh is overdue");
         }
 
         bool sensorsSeen;
@@ -3168,6 +3217,8 @@ namespace Ohman {
             else if (page == "settings") Navigate(Page.Settings, false);
             else if (page == "update") ShowUpdateRow();          // where the rail button goes: settings, at the update row
             Morph(false);
+            UpdateShaderResolution();
+            if (screenshotPath != null && shaderEffect != null) shaderEffect.Time = 1.0;
             StateChanged += delegate { if (WindowState == WindowState.Minimized) TrimMemory(); };
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, (Action)TrimMemory);
             if (Program.JustUpdated) ShowToast("Updated to " + Program.Version, false);

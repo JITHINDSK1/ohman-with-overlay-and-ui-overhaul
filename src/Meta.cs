@@ -9,9 +9,9 @@
 // Version here and nothing else. The title and description differ per binary and sit next to each entry point.
 using System.Reflection;
 
-[assembly: AssemblyProduct("Ohman")]
-[assembly: AssemblyCompany("Ohman")]
-[assembly: AssemblyCopyright("Copyright (C) 2026 Ohman contributors - GPL-3.0-or-later")]
+[assembly: AssemblyProduct("OMI")]
+[assembly: AssemblyCompany("OMI")]
+[assembly: AssemblyCopyright("Copyright (C) 2026 OMI contributors - GPL-3.0-or-later")]
 [assembly: AssemblyVersion(Ohman.Meta.Version)]
 [assembly: AssemblyFileVersion(Ohman.Meta.Version)]
 [assembly: AssemblyInformationalVersion(Ohman.Meta.Version)]
@@ -19,6 +19,6 @@ using System.Reflection;
 namespace Ohman {
     /// <summary>The one place the version lives. Program.Version reads from here.</summary>
     public static class Meta {
-        public const string Version = "1.0.7";
+        public const string Version = "2.0.0";
     }
 }

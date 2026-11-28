@@ -41,7 +41,7 @@ namespace Ohman {
             return Color.FromRgb((byte)(c.R + (towards.R - c.R) * t), (byte)(c.G + (towards.G - c.G) * t), (byte)(c.B + (towards.B - c.B) * t));
         }
         public static FontFamily UiFont = new FontFamily("Segoe UI"), MonoFont = new FontFamily("Consolas");
-        public static readonly Brush Card = Brush("#202329"), Sunken = Brush("#101114"), Elevated = Brush("#17191E"), CardSurface = Brush("#252930"), Pill = Brush("#252930"), Line = Brush("#2F343F"),
+        public static readonly Brush Card = Brush("#D816181F"), Sunken = Brush("#B8101114"), Elevated = Brush("#D81E2129"), CardSurface = Brush("#CC252930"), Pill = Brush("#90252930"), Line = Brush("#28FFFFFF"),
             TextB = Brush("#F5F6F8"), TextHi = Brush("#FFFFFF"), SegText = Brush("#A6ABB5"), Hex = Brush("#A6ABB5"),
             Sub = Brush("#747B87"), Desc = Brush("#A6ABB5"), Status = Brush("#747B87"), Axis = Brush("#747B87"), Foot = Brush("#747B87"), Section = Brush("#A6ABB5");
         /// <summary>The accent brush every accent-coloured thing shares; its colour follows the mode (see ColorSource).</summary>
@@ -62,7 +62,7 @@ namespace Ohman {
                     var asm = Assembly.GetExecutingAssembly();
                     foreach (string n in names) {
                         string path = System.IO.Path.Combine(dir, n);
-                        using (var st = asm.GetManifestResourceStream("Ohman.fonts." + n)) {
+                        using (var st = asm.GetManifestResourceStream("OMI.fonts." + n) ?? asm.GetManifestResourceStream("Ohman.fonts." + n)) {
                             if (st == null) throw new InvalidOperationException("font resource missing: " + n);
                             if (System.IO.File.Exists(path) && new System.IO.FileInfo(path).Length == st.Length) continue;
                             using (var fs = System.IO.File.Create(path)) st.CopyTo(fs);

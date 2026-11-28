@@ -20,15 +20,15 @@ using System.Windows;
 
 // The title is what the UAC prompt and Task Manager show, so it is the app name rather than the file name.
 // The shared publisher and version strings are in src\Meta.cs.
-[assembly: System.Reflection.AssemblyTitle("Ohman")]
-[assembly: System.Reflection.AssemblyDescription("Fan, thermal and keyboard lighting control for HP OMEN and Victus laptops.")]
+[assembly: System.Reflection.AssemblyTitle("OMI")]
+[assembly: System.Reflection.AssemblyDescription("Fan, thermal and hardware control for HP OMEN and Victus laptops.")]
 
 namespace Ohman {
     public static class Program {
         // To rename the app: change AppName here and the /out: names in build.cmd. Everything else follows
         // (window title, tray, scheduled task, single-instance names, log/state file names).
-        public const string AppName = "Ohman";                 // internal id: file names, mutex, scheduled task
-        public static string DisplayName = AppName;           // what the UI shows; override with Name=... in ohman.state
+        public const string AppName = "OMI";                 // internal id: file names, mutex, scheduled task
+        public static string DisplayName = AppName;           // what the UI shows; override with Name=... in omi.state
         public const string Version = Meta.Version;           // bump it in src\Meta.cs, not here
         public static string FileStem { get { return AppName.ToLowerInvariant(); } }
         public static EventWaitHandle ShowEvent, ExitEvent;   // named events: another instance can ask us to show or exit

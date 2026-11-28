@@ -1,9 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
-title Ohman Uninstaller
+title OMI Uninstaller
 
 echo =======================================================
-echo              Ohman Uninstallation
+echo               OMI Uninstallation
 echo =======================================================
 echo.
 
@@ -22,29 +22,37 @@ if %errorLevel% neq 0 (
 )
 
 :: 2. Stop running instances
-echo [1/4] Stopping Ohman...
+echo [1/4] Stopping OMI...
+taskkill /F /IM OMI.exe >nul 2>&1
 taskkill /F /IM Ohman.exe >nul 2>&1
 timeout /t 1 /nobreak >nul
 
-:: 3. Remove scheduled task
-echo [2/4] Removing autostart task...
+:: 3. Remove scheduled tasks
+echo [2/4] Removing autostart tasks...
+schtasks /Delete /TN "OMI" /F >nul 2>&1
 schtasks /Delete /TN "Ohman" /F >nul 2>&1
 
 :: 4. Remove shortcuts
 echo [3/4] Removing shortcuts...
+del /F /Q "%APPDATA%\Microsoft\Windows\Start Menu\Programs\OMI.lnk" >nul 2>&1
+del /F /Q "%USERPROFILE%\Desktop\OMI.lnk" >nul 2>&1
 del /F /Q "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Ohman.lnk" >nul 2>&1
 del /F /Q "%USERPROFILE%\Desktop\Ohman.lnk" >nul 2>&1
 
 :: 5. Remove program files
 echo [4/4] Removing installed files...
-set "INSTALL_DIR=%LOCALAPPDATA%\Programs\Ohman"
+set "INSTALL_DIR=%LOCALAPPDATA%\Programs\OMI"
 if exist "%INSTALL_DIR%" (
     rmdir /S /Q "%INSTALL_DIR%" >nul 2>&1
+)
+set "OLD_INSTALL_DIR=%LOCALAPPDATA%\Programs\Ohman"
+if exist "%OLD_INSTALL_DIR%" (
+    rmdir /S /Q "%OLD_INSTALL_DIR%" >nul 2>&1
 )
 
 echo.
 echo =======================================================
-echo        Ohman was successfully uninstalled!
+echo         OMI was successfully uninstalled!
 echo =======================================================
 echo.
 timeout /t 3 /nobreak >nul

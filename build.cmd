@@ -8,8 +8,8 @@ cd /d "%~dp0"
 set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
 set WPF=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\WPF
 set REFS=/r:System.Management.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Xaml.dll /r:"%WPF%\PresentationCore.dll" /r:"%WPF%\PresentationFramework.dll" /r:"%WPF%\WindowsBase.dll"
-set SRC=src\Meta.cs src\Support.cs src\Platform.cs src\Hardware.cs src\Hid.cs src\Lighting.cs src\Keyboard.cs src\Display.cs src\Update.cs src\Theme.cs src\Controls.cs src\Curve.cs src\Sensors.cs src\Engine.cs src\Profile.cs src\OverlayWindow.cs src\Ui.cs src\Program.cs
-set RES=/resource:src\Ui.xaml,Ohman.Ui.xaml /resource:fonts\IBMPlexSans-Regular.ttf,Ohman.fonts.IBMPlexSans-Regular.ttf /resource:fonts\IBMPlexSans-Medium.ttf,Ohman.fonts.IBMPlexSans-Medium.ttf /resource:fonts\IBMPlexSans-SemiBold.ttf,Ohman.fonts.IBMPlexSans-SemiBold.ttf /resource:fonts\IBMPlexMono-Regular.ttf,Ohman.fonts.IBMPlexMono-Regular.ttf /resource:fonts\IBMPlexMono-Medium.ttf,Ohman.fonts.IBMPlexMono-Medium.ttf /resource:fonts\OFL.txt,Ohman.fonts.OFL.txt
+set SRC=src\Meta.cs src\Support.cs src\Platform.cs src\Hardware.cs src\Hid.cs src\Lighting.cs src\Keyboard.cs src\Display.cs src\Update.cs src\Theme.cs src\Controls.cs src\Curve.cs src\Sensors.cs src\Engine.cs src\Profile.cs src\OverlayWindow.cs src\ShaderBg.cs src\Ui.cs src\Program.cs
+set RES=/resource:src\Ui.xaml,Ohman.Ui.xaml /resource:src\Ui.xaml,OMI.Ui.xaml /resource:src\MeshDrift.ps,Ohman.MeshDrift.ps /resource:src\MeshDrift.ps,OMI.MeshDrift.ps /resource:fonts\IBMPlexSans-Regular.ttf,Ohman.fonts.IBMPlexSans-Regular.ttf /resource:fonts\IBMPlexSans-Regular.ttf,OMI.fonts.IBMPlexSans-Regular.ttf /resource:fonts\IBMPlexSans-Medium.ttf,Ohman.fonts.IBMPlexSans-Medium.ttf /resource:fonts\IBMPlexSans-Medium.ttf,OMI.fonts.IBMPlexSans-Medium.ttf /resource:fonts\IBMPlexSans-SemiBold.ttf,Ohman.fonts.IBMPlexSans-SemiBold.ttf /resource:fonts\IBMPlexSans-SemiBold.ttf,OMI.fonts.IBMPlexSans-SemiBold.ttf /resource:fonts\IBMPlexMono-Regular.ttf,Ohman.fonts.IBMPlexMono-Regular.ttf /resource:fonts\IBMPlexMono-Regular.ttf,OMI.fonts.IBMPlexMono-Regular.ttf /resource:fonts\IBMPlexMono-Medium.ttf,Ohman.fonts.IBMPlexMono-Medium.ttf /resource:fonts\IBMPlexMono-Medium.ttf,OMI.fonts.IBMPlexMono-Medium.ttf /resource:fonts\OFL.txt,Ohman.fonts.OFL.txt /resource:fonts\OFL.txt,OMI.fonts.OFL.txt
 if not exist preview mkdir preview
 
 :: 1. preview build without an icon, used to generate app.ico
@@ -19,13 +19,15 @@ preview\Ohman.exe --make-ico app.ico
 if exist app.ico (set ICO=/win32icon:app.ico) else (set ICO=)
 
 :: 2. preview build with the icon
-"%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:preview\Ohman.exe /win32manifest:app.demo.manifest %ICO% %RES% %REFS% %SRC%
+"%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:preview\OMI.exe /win32manifest:app.demo.manifest %ICO% %RES% %REFS% %SRC%
 if errorlevel 1 exit /b 1
-if /i "%~1"=="preview" (echo Built preview\Ohman.exe & exit /b 0)
+copy /y preview\OMI.exe preview\Ohman.exe >nul 2>&1
+if /i "%~1"=="preview" (echo Built preview\OMI.exe & exit /b 0)
 
 :: 3. the real thing + the probe tool
-"%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:Ohman.exe /win32manifest:app.manifest %ICO% %RES% %REFS% %SRC%
+"%CSC%" /nologo /target:winexe /platform:x64 /optimize+ /warn:1 /out:OMI.exe /win32manifest:app.manifest %ICO% %RES% %REFS% %SRC%
 if errorlevel 1 exit /b 1
+copy /y OMI.exe Ohman.exe >nul 2>&1
 "%CSC%" /nologo /target:exe /platform:x64 /optimize+ /warn:1 /out:tools\omenprobe.exe /r:System.Management.dll tools\omenprobe.cs src\Meta.cs
 if errorlevel 1 exit /b 1
-echo Built Ohman.exe, preview\Ohman.exe and tools\omenprobe.exe
+echo Built OMI.exe, preview\OMI.exe and tools\omenprobe.exe

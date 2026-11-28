@@ -1,8 +1,8 @@
-# Ohman — Overlay & UI Overhaul
+# OMI — Hardware Control & UI Overhaul
 
 <p align="center">
   <strong>Ultra-lightweight, zero-bloat hardware companion for HP OMEN and Victus laptops.</strong><br>
-  Complete control over fans, thermal modes, power gain, keyboard remapping, and RGB lighting — without OMEN Gaming Hub's telemetry, ads, or background services.
+  Complete control over fans, thermal modes, power gain, customizable profiles, keyboard remapping, and RGB lighting — without OMEN Gaming Hub's telemetry, ads, or background services.
 </p>
 
 <p align="center">
@@ -22,11 +22,11 @@
 ## 📥 Download & Easy Installation
 
 ### Option 1: 1-Click Installer (Recommended)
-1. Download **[Ohman-v1.0.7-Setup.zip](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/Ohman-v1.0.7-Setup.zip)** from the [Latest Release](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest).
+1. Download **[OMI-v2.0.0-Setup.zip](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/OMI-v2.0.0-Setup.zip)** from the [Latest Release](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest).
 2. Extract the `.zip` archive.
 3. Right-click **`install.cmd`** and select **Run as administrator** (or double-click to run).
 4. **Done!**
-   - Installs Ohman cleanly into `%LOCALAPPDATA%\Programs\Ohman`.
+   - Installs OMI cleanly into `%LOCALAPPDATA%\Programs\OMI`.
    - Creates Start Menu and Desktop shortcuts.
    - Automatically registers elevated Windows logon autostart (no UAC popups every time you reboot).
    - Starts running immediately in the system tray.
@@ -36,21 +36,26 @@
 
 ### Option 2: Standalone Portable Binary
 If you prefer not to install anything:
-1. Download **[Ohman.exe](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/Ohman.exe)** directly.
+1. Download **[OMI.exe](https://github.com/JITHINDSK1/ohman-with-overlay-and-ui-overhaul/releases/latest/download/OMI.exe)** directly.
 2. Place it in any folder and run it as Administrator.
 
 ---
 
 ## ⚡ What is this Overhaul?
 
-This fork transforms **Ohman** into a high-performance, zero-lag laptop companion with an always-on-top game-safe overlay, stepped fan cooling algorithms, real-time keyboard remapping, custom per-key RGB lighting, and ultra-low overhead:
+This overhaul transforms the laptop companion into **OMI** — a high-performance, zero-lag interface with an animated "Mesh drift" shader background, translucent glass card styling, an always-on-top game-safe overlay, stepped fan cooling algorithms, multi-profile customization with instant <kbd>Alt</kbd> + <kbd>W</kbd> switching, real-time keyboard remapping, and ultra-low overhead:
 
+- **GPU-Accelerated "Mesh Drift" Shader Background**: Silky smooth, hardware-accelerated Direct3D pixel shader (blobs drift palette `#101010` ➔ `#F5F5F5` ➔ `#B0B0B0` ➔ `#3A3A3A`) that floats behind dark translucent glass cards and auto-pauses when minimized or hidden to ensure 0% idle CPU/GPU usage.
+- **Customizable Profiles with <kbd>Alt</kbd> + <kbd>W</kbd> Hotkey**: Create unlimited tailored profiles (Gaming, Productivity, Silent Night, Heat Wipe) configuring starting fan speeds (Auto Curve, 0 RPM silent, Fixed, 5700 RPM Turbo, 6200 RPM Heat Wipe), power gain, and RGB lighting.
+- **Process Auto-Boost Triggers & In-App Process Picker**: Automatically ramp fan speeds and mode when specific games or background operations launch, with a convenient running application selector modal (no browsing File Explorer).
 - **Zero-RPM Fan Thresholds**: Fans completely shut off (0 RPM) when CPU & GPU temperatures are under 45°C (or under 70°C in Quiet mode).
 - **Stepped Fan Deceleration**: Prevents harsh mechanical wear and sudden acoustic drops by ramping down speeds progressively (e.g. `6200` ➔ `5700` ➔ `4800` ➔ `3300` ➔ `2300` ➔ `1800` ➔ `0 RPM`).
 - **Pinned Game-Safe Performance Overlay (`OverlayWindow`)**: Non-activating, Alt+Tab-hidden (`WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE`) floating telemetry HUD that enforces top Z-order on foreground switches so it stays visible over apps and Windowed Fullscreen / Borderless games (like Valorant) without stealing focus.
 - **Global Hotkeys**:
+  - <kbd>Alt</kbd> + <kbd>W</kbd>: Cycle custom profiles with live HUD status notification.
   - <kbd>Win</kbd> + <kbd>O</kbd>: Cycle performance modes (**Quiet**, **Balanced**, **Performance**, **Unleashed**) with a 5-second click-through HUD overlay.
   - <kbd>Fn</kbd> + <kbd>Q</kbd>: Quick-toggle between active mode and max cooling **5700 RPM Turbo Mode** with HUD notification.
+  - <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd>: Emergency keyboard lock/unlock toggle.
 - **Heat Wipe Mode (6,200 RPM Overdrive)**: Dedicated in-app tab for rapid maximum-airflow thermal dissipation.
 - **System-Wide Keyboard Remapping**: Zero-allocation low-level Windows hook (`WH_KEYBOARD_LL`) with quick presets (Caps Lock ➔ Ctrl, Caps Lock ➔ Esc, Swap Alt ↔ Win, etc.) and interactive key-capture.
 - **Per-Key RGB Lighting**: Unlocked individual key, row, and zone color customization with custom hex palettes and one-click reset.
@@ -174,7 +179,10 @@ If your laptop model is not yet in the verified list, Ohman automatically detect
 src/
 ├── Engine.cs          # Thermal policy, fan stepping logic, settings, keep-alive loop
 ├── Ui.cs              # Main window code, HUD triggers, smooth scrolling, key hook
-├── Ui.xaml            # Modern dark WPF layout and visual components
+├── Ui.xaml            # Modern translucent glass WPF layout and visual components
+├── ShaderBg.cs        # GPU-accelerated "Mesh drift" Direct3D pixel shader effect
+├── MeshDrift.ps       # Compiled Direct3D ps_3_0 pixel shader bytecode (blobs drift)
+├── Profile.cs         # Multi-profile manager, process triggers, hotkey dispatcher
 ├── OverlayWindow.cs   # Always-on-top game-safe non-activating telemetry overlay
 ├── Theme.cs           # Cached brushes, animations, font loading, UI choice tables
 ├── Controls.cs        # Custom segmented bars, color strip pickers, click-through OSD

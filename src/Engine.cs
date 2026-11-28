@@ -103,7 +103,7 @@ namespace Ohman {
         public bool OverlayShow = false, OverlayPin = false;
         public int OverlayX = -1, OverlayY = -1;
         public bool StartHidden = false;
-        public string Name = "";                    // display name shown in the window/tray (empty = "Ohman")
+        public string Name = "";                    // display name shown in the window/tray (empty = "OMI")
         public int Light = -1;                      // keyboard: 0 off, 1 Ohman's colours, 2 Windows Dynamic Lighting; -1 = not chosen yet
         public string LightColors = "";             // zone colours RRGGBB,RRGGBB,... (seeded from the firmware on first run)
         public int LightLevel = 100;                // brightness 0..100, applied by scaling the colours (firmware level byte is unverified)
@@ -382,7 +382,7 @@ namespace Ohman {
             // failed fetch spends the new-build recheck on nothing and leaves a stale tag for another day.
             if (tag != null) { S.LatestVersion = tag; S.CheckedFrom = Program.Version; }
             S.Save();
-            if (force) Say(tag == null ? "Update check failed" : Update.Newer(tag, Program.Version) ? "Version " + tag + " is available" : "Ohman is up to date");
+            if (force) Say(tag == null ? "Update check failed" : Update.Newer(tag, Program.Version) ? "Version " + tag + " is available" : "OMI is up to date");
             Changed();
             // Fetch it now rather than when the owner asks. This runs on a background thread already, and the
             // point of doing it here is that "restart to update" is offered only once there is something on disk
@@ -560,7 +560,7 @@ namespace Ohman {
             Thread start = null;
             lock (work) {
                 work.Enqueue(a);
-                if (worker == null) { worker = new Thread(WorkLoop) { IsBackground = true, Name = "ohman-work" }; start = worker; }
+                if (worker == null) { worker = new Thread(WorkLoop) { IsBackground = true, Name = "omi-work" }; start = worker; }
             }
             if (start != null) start.Start();
             workReady.Set();
